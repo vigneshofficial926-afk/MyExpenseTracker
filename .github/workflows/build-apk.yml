@@ -26,51 +26,73 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Setup Gradle
+      - name: Setup Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
-      - name: Ensure Gradle Wrapper
-        run: |
-          gradle wrapper --gradle-version 8.7 --distribution-type bin
-          chmod +x ./gradlew
+      - name: Grant Execute Permission to Gradlew
+        run: chmod +x gradlew
 
-      - name: Build Debug APK with Gradle
+      - name: Generate Gradle Wrapper JAR
+        run: |
+          # Use the pre-installed Gradle to generate proper wrapper files
+          gradle wrapper --gradle-version=8.7 --distribution-type=bin
+          ls -lh gradle/wrapper/
+          echo "Gradle wrapper JAR generated successfully"
+
+      - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload Debug APK Artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: MyExpenseTracker-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      - name: Upload Failure Logs
+      - name: Upload Build Failure Logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: build-failure-logs
           path: |
             app/build/reports/
-            build/
+            app/build/outputs/
+            ~/.gradle/daemon/*/daemon-*.log
 
-      - name: Publish GitHub Release
-        if: success() && github.ref == 'refs/heads/main'
+      - name: Create GitHub Release with APK
+        if: success() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
-        continue-on-error: true
         with:
-          tag_name: "v1.0.0"
-          name: "My Expense Tracker v1.0.0 (Release APK)"
+          tag_name: "v1.0.${{ github.run_number }}"
+          name: "My Expense Tracker v1.0.${{ github.run_number }}"
           body: |
-            ### 📱 My Expense Tracker Android APK
-            
-            Download the attached `app-debug.apk` file below to install directly on your Android mobile device.
-            
-            - **Platform:** Android 8.0+ (API 26+)
-            - **Architecture:** Jetpack Compose (Material 3), Room DB, MVVM
-            - **Privacy:** 100% Offline, no external server tracking
+            ## 📱 My Expense Tracker — Android APK
+
+            Download the `app-debug.apk` file below and install it directly on your Android phone.
+
+            ### 📥 How to Install
+            1. Download `app-debug.apk` from the **Assets** section below
+            2. On your Android phone → **Settings** → **Security** → enable **Install from Unknown Sources**
+            3. Open the downloaded APK and tap **Install**
+
+            ### ✨ Features
+            - 💰 Track daily income & expenses in ₹ Indian Rupee
+            - 📊 Dashboard with balance, monthly totals & budget progress
+            - 🗂️ Customizable categories, budgets & reports
+            - 🎯 Savings goals tracker
+            - 🔁 Recurring transactions (rent, EMI, etc.)
+            - 🔒 PIN lock security
+            - 📤 Export to CSV · Backup & Restore
+
+            ### 📋 Requirements
+            - Android **8.0+** (API 26+)
+            - No internet required — **100% Offline**
+
+            ---
+            *Built with Jetpack Compose · Material 3 · Room DB · MVVM*
           files: app/build/outputs/apk/debug/app-debug.apk
           draft: false
           prerelease: false
