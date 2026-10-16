@@ -12,7 +12,7 @@ import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Laptop
+import androidx.compose.material.icons.filled.LaptopMac
 import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.LocalHospital
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -47,7 +47,7 @@ object CategoryIconHelper {
             "subscriptions" -> Icons.Default.Subscriptions
             "account_balance_wallet", "wallet", "salary" -> Icons.Default.AccountBalanceWallet
             "account_balance", "bank" -> Icons.Default.AccountBalance
-            "laptop_mac", "laptop", "freelance" -> Icons.Default.Laptop
+            "laptop_mac", "laptop", "freelance" -> Icons.Default.LaptopMac
             "trending_up", "business" -> Icons.Default.TrendingUp
             "savings", "interest" -> Icons.Default.Savings
             "card_giftcard", "gift" -> Icons.Default.CardGiftcard

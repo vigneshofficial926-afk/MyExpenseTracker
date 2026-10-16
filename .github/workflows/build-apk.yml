@@ -70,7 +70,7 @@ jobs:
             echo "=== BUILD OUTPUT (last 100 lines) ==="
             tail -100 build_output.txt || true
             echo "=== ERROR LINES ==="
-            grep -i "error:" build_output.txt | head -30 || true
+            grep -E "(^e: |error:|FAILED)" build_output.txt | head -50 || true
           fi
 
       - name: Upload Debug APK Artifact
