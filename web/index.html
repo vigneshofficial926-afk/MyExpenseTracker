@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>My Expense Tracker - Personal Financial Dashboard</title>
+  
+  <!-- Modern Typography & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Floating Desktop Shell Switcher -->
+  <div class="shell-controls">
+    <button class="control-btn" id="toggleFrameBtn" onclick="toggleDeviceFrame()">
+      <span class="material-symbols-rounded" style="font-size:16px;">smartphone</span>
+      <span>Toggle Phone/Desktop</span>
+    </button>
+    <button class="control-btn" onclick="toggleTheme()">
+      <span class="material-symbols-rounded" style="font-size:16px;">dark_mode</span>
+      <span>Theme</span>
+    </button>
+  </div>
+
+  <!-- Device Shell (Mobile Android Experience) -->
+  <div class="device-shell" id="deviceShell">
+    
+    <!-- Phone Status Bar -->
+    <div class="phone-status-bar">
+      <span>12:45</span>
+      <div class="status-camera-notch"></div>
+      <div class="status-icons">
+        <span class="material-symbols-rounded" style="font-size:15px;">signal_cellular_4_bar</span>
+        <span class="material-symbols-rounded" style="font-size:15px;">wifi</span>
+        <span class="material-symbols-rounded" style="font-size:15px;">battery_full</span>
+      </div>
+    </div>
+
+    <!-- Top App Bar -->
+    <header class="top-app-bar">
+      <div class="top-bar-title">
+        <h1 id="topBarTitle">My Expense Tracker</h1>
+        <p>Personal Financial Dashboard</p>
+      </div>
+      <div class="top-bar-actions">
+        <button class="icon-btn" onclick="switchTab('settings')" title="Settings">
+          <span class="material-symbols-rounded">settings</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Scrollable Active Screen Content -->
+    <main class="screen-scroll-container" id="mainContent">
+      <!-- Injected by app.js -->
+    </main>
+
+    <!-- Floating Action Button: Add Transaction -->
+    <button class="fab" onclick="openAddModal('EXPENSE')" title="Add Transaction">
+      <span class="material-symbols-rounded" style="font-size:28px;">add</span>
+    </button>
+
+    <!-- Bottom Navigation Bar (5 Main Tabs) -->
+    <nav class="bottom-nav-bar">
+      <button class="nav-item active" data-tab="home">
+        <div class="nav-icon-wrap"><span class="material-symbols-rounded">home</span></div>
+        <span>Home</span>
+      </button>
+      <button class="nav-item" data-tab="transactions">
+        <div class="nav-icon-wrap"><span class="material-symbols-rounded">receipt_long</span></div>
+        <span>History</span>
+      </button>
+      <button class="nav-item" data-tab="reports">
+        <div class="nav-icon-wrap"><span class="material-symbols-rounded">bar_chart</span></div>
+        <span>Reports</span>
+      </button>
+      <button class="nav-item" data-tab="budget">
+        <div class="nav-icon-wrap"><span class="material-symbols-rounded">account_balance_wallet</span></div>
+        <span>Budget</span>
+      </button>
+      <button class="nav-item" data-tab="settings">
+        <div class="nav-icon-wrap"><span class="material-symbols-rounded">settings</span></div>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+    <!-- Add / Edit Transaction Modal Sheet -->
+    <div class="modal-overlay" id="addTxModal">
+      <div class="modal-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <h3 id="modalSheetTitle">Add Transaction</h3>
+          <button class="icon-btn" onclick="closeModal('addTxModal')">
+            <span class="material-symbols-rounded">close</span>
+          </button>
+        </div>
+
+        <!-- Type Selector -->
+        <div class="type-segmented-control">
+          <button type="button" class="segment-btn active expense" data-type="EXPENSE">Expense</button>
+          <button type="button" class="segment-btn income" data-type="INCOME">Income</button>
+          <button type="button" class="segment-btn transfer" data-type="TRANSFER">Transfer</button>
+        </div>
+
+        <!-- Amount Input -->
+        <div class="form-group">
+          <label class="form-label">Amount in Indian Rupee (₹)</label>
+          <input type="number" id="txAmountInput" class="input-field" placeholder="0.00" step="any" style="font-size:22px;font-weight:800;">
+        </div>
+
+        <!-- Category Picker -->
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <div class="category-chips-grid" id="modalCatChips">
+            <!-- Chips injected dynamically -->
+          </div>
+        </div>
+
+        <!-- Date & Payment Method -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;" class="form-group">
+          <div>
+            <label class="form-label">Date (DD-MM-YYYY)</label>
+            <input type="date" id="txDateInput" class="input-field">
+          </div>
+          <div>
+            <label class="form-label">Payment Method</label>
+            <select id="txPaymentMethod" class="input-field">
+              <option value="UPI">UPI</option>
+              <option value="Cash">Cash</option>
+              <option value="Debit Card">Debit Card</option>
+              <option value="Credit Card">Credit Card</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div class="form-group">
+          <label class="form-label">Description / Notes</label>
+          <input type="text" id="txDescInput" class="input-field" placeholder="e.g. Dinner with friends, grocery shopping">
+        </div>
+
+        <!-- Tags -->
+        <div class="form-group">
+          <label class="form-label">Tags (comma-separated)</label>
+          <input type="text" id="txTagsInput" class="input-field" placeholder="e.g. food, weekend, outing">
+        </div>
+
+        <!-- Credit Card Bill Settlement Rule Toggle (Rule 13) -->
+        <div class="card" style="padding:10px 14px;background:var(--surface-variant);display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div>
+            <div style="font-size:12px;font-weight:700;">Credit Card Bill Payment</div>
+            <div style="font-size:10px;color:var(--text-secondary);">Exclude from double-counting expenses</div>
+          </div>
+          <input type="checkbox" id="txCcBillCheckbox" style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer;">
+        </div>
+
+        <!-- Save Button -->
+        <button type="button" class="btn-primary" onclick="saveTransactionFromModal()">
+          <span class="material-symbols-rounded">check</span>
+          Save Transaction
+        </button>
+      </div>
+    </div>
+
+    <!-- Security PIN Lock Screen -->
+    <div class="pin-screen" id="pinLockScreen" style="display:none;">
+      <div style="width:60px;height:60px;border-radius:50%;background:var(--primary-container);color:var(--primary);display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+        <span class="material-symbols-rounded" style="font-size:32px;">lock</span>
+      </div>
+      <h2 style="font-size:20px;font-weight:800;">Security PIN Lock</h2>
+      <p style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Enter your 4-digit PIN to access records</p>
+      
+      <div class="pin-dots">
+        <div class="pin-dot" id="pinDot0"></div>
+        <div class="pin-dot" id="pinDot1"></div>
+        <div class="pin-dot" id="pinDot2"></div>
+        <div class="pin-dot" id="pinDot3"></div>
+      </div>
+
+      <div class="numpad-grid">
+        <button class="numpad-btn" onclick="pressPinKey('1')">1</button>
+        <button class="numpad-btn" onclick="pressPinKey('2')">2</button>
+        <button class="numpad-btn" onclick="pressPinKey('3')">3</button>
+        <button class="numpad-btn" onclick="pressPinKey('4')">4</button>
+        <button class="numpad-btn" onclick="pressPinKey('5')">5</button>
+        <button class="numpad-btn" onclick="pressPinKey('6')">6</button>
+        <button class="numpad-btn" onclick="pressPinKey('7')">7</button>
+        <button class="numpad-btn" onclick="pressPinKey('8')">8</button>
+        <button class="numpad-btn" onclick="pressPinKey('9')">9</button>
+        <div></div>
+        <button class="numpad-btn" onclick="pressPinKey('0')">0</button>
+        <button class="numpad-btn" onclick="deletePinKey()"><span class="material-symbols-rounded">backspace</span></button>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast-msg" id="toastMsg">
+      <span class="material-symbols-rounded">check_circle</span>
+      <span>Saved successfully!</span>
+    </div>
+
+  </div>
+
+  <script src="js/app.js"></script>
+  <script>
+    function toggleDeviceFrame() {
+      const shell = document.getElementById('deviceShell');
+      shell.classList.toggle('fullscreen');
+      const isFull = shell.classList.contains('fullscreen');
+      document.getElementById('toggleFrameBtn').innerHTML = `
+        <span class="material-symbols-rounded" style="font-size:16px;">${isFull ? 'smartphone' : 'laptop'}</span>
+        <span>${isFull ? 'Phone View' : 'Fullscreen'}</span>
+      `;
+    }
+  </script>
+</body>
+</html>
