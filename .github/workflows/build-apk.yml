@@ -39,28 +39,41 @@ jobs:
       - name: Build Debug APK with Gradle
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Upload APK Artifact
+      - name: Upload Debug APK Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: MyExpenseTracker-v1.0.0-debug.apk
+          name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      - name: Release APK
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
+      - name: Upload Failure Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v1.0.0
-          name: "My Expense Tracker v1.0.0"
+          name: build-failure-logs
+          path: |
+            app/build/reports/
+            build/
+
+      - name: Publish GitHub Release
+        if: success() && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        continue-on-error: true
+        with:
+          tag_name: "v1.0.0"
+          name: "My Expense Tracker v1.0.0 (Release APK)"
           body: |
             ### 📱 My Expense Tracker Android APK
             
-            Download the attached `app-debug.apk` below and install it directly on your Android phone!
+            Download the attached `app-debug.apk` file below to install directly on your Android mobile device.
             
-            - **App Name:** My Expense Tracker
-            - **Platform:** Android 8.0+ (API 26 to 34)
-            - **Architecture:** Kotlin, Jetpack Compose (Material 3), Room DB (MVVM)
-            - **Privacy:** 100% Offline, no external cloud transmission
+            - **Platform:** Android 8.0+ (API 26+)
+            - **Architecture:** Jetpack Compose (Material 3), Room DB, MVVM
+            - **Privacy:** 100% Offline, no external server tracking
           files: app/build/outputs/apk/debug/app-debug.apk
+          draft: false
+          prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -21,8 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Warning
@@ -151,7 +151,7 @@ fun BudgetScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = { viewModel.selectMonth(uiState.selectedMonthYear.minusMonths(1)) }) {
-                        Icon(imageVector = Icons.Default.ChevronLeft, contentDescription = "Previous Month")
+                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Previous Month")
                     }
 
                     Text(
@@ -161,7 +161,7 @@ fun BudgetScreen(
                     )
 
                     IconButton(onClick = { viewModel.selectMonth(uiState.selectedMonthYear.plusMonths(1)) }) {
-                        Icon(imageVector = Icons.Default.ChevronRight, contentDescription = "Next Month")
+                        Icon(imageVector = Icons.Default.ArrowForward, contentDescription = "Next Month")
                     }
                 }
             }
