@@ -568,21 +568,21 @@ function renderTransactions(container, transactions) {
     </div>
 
     <!-- Time Filter Chips -->
-    <div class="quick-add-chips" style="margin-bottom:8px;">
-      <button class="chip-btn ${state.txFilterPeriod === 'all' ? 'active' : ''}" onclick="filterPeriod('all')">All Time</button>
-      <button class="chip-btn ${state.txFilterPeriod === 'today' ? 'active' : ''}" onclick="filterPeriod('today')">Today</button>
-      <button class="chip-btn ${state.txFilterPeriod === 'week' ? 'active' : ''}" onclick="filterPeriod('week')">This Week</button>
-      <button class="chip-btn ${state.txFilterPeriod === 'month' ? 'active' : ''}" onclick="filterPeriod('month')">This Month</button>
+    <div class="filter-chips-row" style="margin-bottom:8px;">
+      <button class="filter-chip-btn ${state.txFilterPeriod === 'all' ? 'active' : ''}" onclick="filterPeriod('all')">All Time</button>
+      <button class="filter-chip-btn ${state.txFilterPeriod === 'today' ? 'active' : ''}" onclick="filterPeriod('today')">Today</button>
+      <button class="filter-chip-btn ${state.txFilterPeriod === 'week' ? 'active' : ''}" onclick="filterPeriod('week')">This Week</button>
+      <button class="filter-chip-btn ${state.txFilterPeriod === 'month' ? 'active' : ''}" onclick="filterPeriod('month')">This Month</button>
     </div>
 
     <!-- Type Filters & CSV Export -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <div style="display:flex;gap:6px;">
-        <button class="chip-btn ${state.txFilterType === 'ALL' ? 'active' : ''}" onclick="filterType('ALL')">All</button>
-        <button class="chip-btn ${state.txFilterType === 'EXPENSE' ? 'active' : ''}" onclick="filterType('EXPENSE')">Expenses</button>
-        <button class="chip-btn ${state.txFilterType === 'INCOME' ? 'active' : ''}" onclick="filterType('INCOME')">Income</button>
+        <button class="filter-chip-btn ${state.txFilterType === 'ALL' ? 'active' : ''}" onclick="filterType('ALL')">All</button>
+        <button class="filter-chip-btn ${state.txFilterType === 'EXPENSE' ? 'active' : ''}" onclick="filterType('EXPENSE')">Expenses</button>
+        <button class="filter-chip-btn ${state.txFilterType === 'INCOME' ? 'active' : ''}" onclick="filterType('INCOME')">Income</button>
       </div>
-      <button class="chip-btn" onclick="exportCsv()" title="Download CSV">
+      <button class="filter-chip-btn" onclick="exportCsv()" title="Download CSV">
         <span class="material-symbols-rounded" style="font-size:16px;">upload_file</span>
         CSV
       </button>

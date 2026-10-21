@@ -341,6 +341,46 @@ body {
   letter-spacing: 0.5px;
 }
 
+/* Filter Chips Row for Transactions / Reports tabs */
+.filter-chips-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.filter-chips-row::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-chip-btn {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: var(--radius-full);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-chip-btn:hover {
+  background: var(--surface-variant);
+  border-color: var(--primary);
+  color: var(--primary-light);
+}
+
+.filter-chip-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
 /* Mini Metrics Grid */
 .mini-metrics-grid {
   display: grid;
