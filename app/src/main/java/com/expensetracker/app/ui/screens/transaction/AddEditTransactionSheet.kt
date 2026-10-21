@@ -238,8 +238,8 @@ fun AddEditTransactionSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                uiState.availableCategories.forEach { category ->
-                    val isSelected = uiState.selectedCategory?.id == category.id
+                uiState.availableCategories.distinctBy { it.name.trim().lowercase() }.forEach { category ->
+                    val isSelected = uiState.selectedCategory?.id == category.id || uiState.selectedCategory?.name.equals(category.name, ignoreCase = true)
                     FilterChip(
                         selected = isSelected,
                         onClick = { viewModel.onCategorySelected(category) },
@@ -324,34 +324,38 @@ fun AddEditTransactionSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 5. Payment Method Selector
-            Text(
-                text = "Payment Method",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+            // 5. Payment Method Selector (Only shown when editing an existing transaction)
+            if (uiState.isEditing) {
+                Text(
+                    text = "Payment Method",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                PaymentMethod.entries.forEach { method ->
-                    val isSelected = uiState.paymentMethod == method
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.onPaymentMethodChanged(method) },
-                        label = { Text(method.displayName) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    PaymentMethod.entries.forEach { method ->
+                        val isSelected = uiState.paymentMethod == method
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { viewModel.onPaymentMethodChanged(method) },
+                            label = { Text(method.displayName) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         )
-                    )
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
             Spacer(modifier = Modifier.height(16.dp))

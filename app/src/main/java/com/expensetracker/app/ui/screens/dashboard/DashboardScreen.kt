@@ -72,7 +72,7 @@ fun DashboardScreen(
     onNavigateToTransactions: () -> Unit,
     onNavigateToAddTransaction: (TransactionType) -> Unit,
     onNavigateToEditTransaction: (Long) -> Unit,
-    onNavigateToSavingsGoals: () -> Unit
+    onNavigateToSavingsGoals: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -93,22 +93,6 @@ fun DashboardScreen(
                             text = "Personal Financial Dashboard",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                actions = {
-                    TextButton(onClick = onNavigateToSavingsGoals) {
-                        Icon(
-                            imageVector = Icons.Default.Savings,
-                            contentDescription = "Goals",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Goals",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 },

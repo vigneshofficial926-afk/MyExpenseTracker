@@ -983,24 +983,30 @@ function openAddModal(defaultType = 'EXPENSE', txId = null) {
   const filteredCats = categories.filter(c => c.type === type);
   const selectedCat = existing ? existing.categoryName : (filteredCats[0] ? filteredCats[0].name : '');
 
-  document.getElementById('modalSheetTitle').textContent = txId ? 'Edit Transaction' : 'Add Transaction';
+  document.getElementById('modalSheetTitle').textContent = txId ? 'Edit Transaction' : 'Quick Add Transaction';
   document.getElementById('txAmountInput').value = existing ? existing.amount : '';
   document.getElementById('txDescInput').value = existing ? existing.description : '';
   document.getElementById('txTagsInput').value = existing ? existing.tags : '';
   document.getElementById('txCcBillCheckbox').checked = existing ? !!existing.isCreditCardBillPayment : false;
+
+  const moreOptionsEl = document.getElementById('txMoreOptions');
+  if (moreOptionsEl) {
+    moreOptionsEl.open = existing ? (!!existing.tags || !!existing.isCreditCardBillPayment) : false;
+  }
   
   // Date time defaults
   const d = existing ? new Date(existing.dateTime) : new Date();
   const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   document.getElementById('txDateInput').value = dateStr;
 
-  // Render type segments
+  // Render type segments (Expense / Income / Transfer)
   document.querySelectorAll('.segment-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.type === type);
     b.onclick = () => {
       document.querySelectorAll('.segment-btn').forEach(btn => btn.classList.remove('active'));
       b.classList.add('active');
-      renderCategoryChipsInModal(categories.filter(c => c.type === b.dataset.type), null);
+      const catsForType = categories.filter(c => c.type === b.dataset.type);
+      renderCategoryChipsInModal(catsForType, null);
     };
   });
 
@@ -1010,21 +1016,39 @@ function openAddModal(defaultType = 'EXPENSE', txId = null) {
 
 function renderCategoryChipsInModal(categories, selected) {
   const container = document.getElementById('modalCatChips');
-  state.selectedCategory = selected || (categories[0] ? categories[0].name : '');
+  if (!container) return;
+
+  // Deduplicate categories by name to ensure no duplicates
+  const seen = new Set();
+  const uniqueCats = categories.filter(c => {
+    if (!c || !c.name) return false;
+    const key = c.name.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  state.selectedCategory = selected || (uniqueCats[0] ? uniqueCats[0].name : 'Other');
   
-  container.innerHTML = categories.map(cat => `
-    <button type="button" class="category-chip-select ${state.selectedCategory === cat.name ? 'selected' : ''}" 
-            onclick="selectModalCategory('${cat.name}')">
-      <span class="material-symbols-rounded" style="font-size:14px;">${cat.icon}</span>
-      ${cat.name}
-    </button>
-  `).join('');
+  container.innerHTML = uniqueCats.map(cat => {
+    const isSel = state.selectedCategory === cat.name;
+    const catColor = cat.color || 'var(--primary)';
+    return `
+      <button type="button" class="category-chip-select ${isSel ? 'selected' : ''}" 
+              data-cat-name="${cat.name}"
+              onclick="selectModalCategory('${cat.name.replace(/'/g, "\\'")}')">
+        <span class="material-symbols-rounded" style="font-size:15px;color:${isSel ? '#fff' : catColor};">${cat.icon || 'label'}</span>
+        <span>${cat.name}</span>
+      </button>
+    `;
+  }).join('');
 }
 
 function selectModalCategory(name) {
   state.selectedCategory = name;
   document.querySelectorAll('.category-chip-select').forEach(el => {
-    el.classList.toggle('selected', el.textContent.trim().endsWith(name));
+    const isMatch = el.getAttribute('data-cat-name') === name;
+    el.classList.toggle('selected', isMatch);
   });
 }
 
@@ -1044,18 +1068,25 @@ function saveTransactionFromModal() {
   const type = activeSegment ? activeSegment.dataset.type : 'EXPENSE';
   const desc = document.getElementById('txDescInput').value.trim();
   const tags = document.getElementById('txTagsInput').value.trim();
-  const paymentMethod = document.getElementById('txPaymentMethod').value;
   const isCcBill = document.getElementById('txCcBillCheckbox').checked;
   const dateVal = document.getElementById('txDateInput').value;
   const dateTime = dateVal ? new Date(dateVal).getTime() : Date.now();
 
   const transactions = db.get(STORAGE_KEYS.TRANSACTIONS, []);
+  let existing = null;
+  if (state.editingTxId) {
+    existing = transactions.find(t => t.id === state.editingTxId);
+  }
+
+  // Payment method removed from Quick Add (+) menu; defaults cleanly to UPI or existing value
+  const pmEl = document.getElementById('txPaymentMethod');
+  const paymentMethod = pmEl ? pmEl.value : (existing ? (existing.paymentMethod || 'UPI') : 'UPI');
 
   const candidate = {
     id: state.editingTxId || (Date.now() + Math.random()),
     amount: amount,
     type: type,
-    categoryName: state.selectedCategory || 'Other',
+    categoryName: state.selectedCategory || (type === 'INCOME' ? 'Salary' : 'Other Expenses'),
     paymentMethod: paymentMethod,
     description: desc,
     tags: tags,

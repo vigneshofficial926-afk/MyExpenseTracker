@@ -164,8 +164,7 @@ fun MainAppScaffold(
                     },
                     onNavigateToEditTransaction = { id ->
                         navController.navigate(Screen.AddEditTransaction.createRoute(transactionId = id))
-                    },
-                    onNavigateToSavingsGoals = { navController.navigate(Screen.SavingsGoals.route) }
+                    }
                 )
             }
 
