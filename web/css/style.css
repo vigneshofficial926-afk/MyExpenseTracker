@@ -332,11 +332,6 @@ body {
   color: var(--income);
 }
 
-/* Quick Add Strip */
-.quick-add-section {
-  margin-bottom: 16px;
-}
-
 .section-label {
   font-size: 12px;
   font-weight: 700;
@@ -344,39 +339,6 @@ body {
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-}
-
-.quick-add-chips {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  scrollbar-width: none;
-}
-.quick-add-chips::-webkit-scrollbar {
-  display: none;
-}
-
-.chip-btn {
-  background: var(--surface-color);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  border-radius: var(--radius-full);
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.chip-btn:hover {
-  background: var(--surface-variant);
-  border-color: var(--primary);
-  color: var(--primary-light);
 }
 
 /* Mini Metrics Grid */

@@ -443,19 +443,6 @@ function renderHome(container, transactions, accounts, budgets, startOfMonth, en
       </button>
     </div>
 
-    <!-- 1-Tap Quick-Add Strip -->
-    <div class="quick-add-section">
-      <div class="section-label">Quick 1-Tap Add</div>
-      <div class="quick-add-chips">
-        <button class="chip-btn" onclick="quickAdd('Chai / Tea', 20, 'Tea, Coffee and Snacks')">☕ Chai ₹20</button>
-        <button class="chip-btn" onclick="quickAdd('Auto / Metro', 50, 'Transportation and Fuel')">🛺 Auto ₹50</button>
-        <button class="chip-btn" onclick="quickAdd('Coffee', 40, 'Tea, Coffee and Snacks')">☕ Coffee ₹40</button>
-        <button class="chip-btn" onclick="quickAdd('Lunch', 150, 'Hotel and Restaurants')">🥗 Lunch ₹150</button>
-        <button class="chip-btn" onclick="quickAdd('Groceries', 350, 'Food and Groceries')">🥦 Groceries ₹350</button>
-        <button class="chip-btn" onclick="quickAdd('Petrol', 500, 'Transportation and Fuel')">⛽ Petrol ₹500</button>
-      </div>
-    </div>
-
     <!-- Mini Metrics Grid -->
     <div class="mini-metrics-grid">
       <div class="mini-card">
@@ -864,26 +851,6 @@ function toggleBalanceEye() {
   } else {
     el.textContent = '₹ ••••••';
   }
-}
-
-function quickAdd(title, amount, categoryName) {
-  const transactions = db.get(STORAGE_KEYS.TRANSACTIONS, []);
-  const newTx = {
-    id: Date.now(),
-    amount: amount,
-    type: 'EXPENSE',
-    categoryName: categoryName,
-    paymentMethod: 'UPI',
-    description: title,
-    tags: 'quick_add',
-    dateTime: Date.now(),
-    isCreditCardBillPayment: false
-  };
-
-  transactions.unshift(newTx);
-  db.set(STORAGE_KEYS.TRANSACTIONS, transactions);
-  showToast(`Added ${title} (${formatINR(amount)})`);
-  renderApp();
 }
 
 function renderTransactionsTab() {

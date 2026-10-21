@@ -56,7 +56,6 @@ import com.expensetracker.app.ui.components.BalanceCard
 import com.expensetracker.app.ui.components.BudgetProgressBar
 import com.expensetracker.app.ui.components.DonutPieChart
 import com.expensetracker.app.ui.components.MiniMetricCard
-import com.expensetracker.app.ui.components.QuickAddRow
 import com.expensetracker.app.ui.components.TransactionItem
 import com.expensetracker.app.ui.theme.ExpenseRed
 import com.expensetracker.app.ui.theme.IncomeGreen
@@ -207,33 +206,12 @@ fun DashboardScreen(
                 }
             }
 
-            // 4. Quick-Add Row for Frequently Used Daily Expenses
-            item {
-                Column(modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)) {
-                    Text(
-                        text = "Quick 1-Tap Add",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-                    )
-                    QuickAddRow(
-                        onTemplateClick = { template ->
-                            viewModel.quickAddTransaction(template) { msg ->
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(msg)
-                                }
-                            }
-                        }
-                    )
-                }
-            }
-
-            // 5. Daily & Weekly Expense Highlights
+            // 4. Daily & Weekly Expense Highlights
             item {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     MiniMetricCard(

@@ -7,12 +7,10 @@ import androidx.lifecycle.viewModelScope
 import com.expensetracker.app.data.local.entity.AccountEntity
 import com.expensetracker.app.data.local.entity.BudgetEntity
 import com.expensetracker.app.data.local.entity.TransactionEntity
-import com.expensetracker.app.data.model.PaymentMethod
 import com.expensetracker.app.data.model.TransactionType
 import com.expensetracker.app.data.repository.ExpenseRepository
 import com.expensetracker.app.domain.FinancialCalculator
 import com.expensetracker.app.ui.components.ChartSlice
-import com.expensetracker.app.ui.components.QuickAddTemplate
 import com.expensetracker.app.util.DateUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -128,27 +126,6 @@ class DashboardViewModel(
         // Trigger auto-processing of recurring transactions on startup
         viewModelScope.launch {
             repository.processDueRecurringTransactions()
-        }
-    }
-
-    fun quickAddTransaction(template: QuickAddTemplate, onComplete: (String) -> Unit) {
-        viewModelScope.launch {
-            val tx = TransactionEntity(
-                amount = template.amount,
-                type = TransactionType.EXPENSE,
-                categoryId = 1, // Fallback
-                categoryName = template.categoryName,
-                dateTime = System.currentTimeMillis(),
-                paymentMethod = template.paymentMethod,
-                description = template.title,
-                tags = "quick_add"
-            )
-            val result = repository.insertTransaction(tx)
-            if (result.isSuccess) {
-                onComplete("Added ${template.title} (₹${template.amount.toInt()})")
-            } else {
-                onComplete(result.exceptionOrNull()?.message ?: "Could not add transaction")
-            }
         }
     }
 
