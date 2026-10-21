@@ -24,6 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -110,6 +112,13 @@ fun MainAppScaffold(
 
     val isBottomBarVisible = currentRoute in Screen.bottomNavItems.map { it.route }
 
+    // Retain ViewModels at Scaffold scope so bottom tab switching does not recreate them.
+    // This keeps Room database flows hot and cached for 0ms instantaneous navigation.
+    val dashboardViewModel = remember { DashboardViewModel(repository) }
+    val listViewModel = remember { TransactionListViewModel(repository) }
+    val reportsViewModel = remember { ReportsViewModel(repository) }
+    val budgetViewModel = remember { BudgetViewModel(repository) }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
@@ -139,13 +148,14 @@ fun MainAppScaffold(
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = Modifier.padding(bottom = if (isBottomBarVisible) 0.dp else innerPadding.calculateBottomPadding())
+            modifier = Modifier.padding(bottom = if (isBottomBarVisible) 0.dp else innerPadding.calculateBottomPadding()),
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None }
         ) {
             // 1. Home Dashboard
             composable(Screen.Home.route) {
-                val dashboardViewModel: DashboardViewModel = remember {
-                    DashboardViewModel(repository)
-                }
                 DashboardScreen(
                     viewModel = dashboardViewModel,
                     onNavigateToTransactions = { navController.navigate(Screen.Transactions.route) },
@@ -161,9 +171,6 @@ fun MainAppScaffold(
 
             // 2. Transactions History
             composable(Screen.Transactions.route) {
-                val listViewModel: TransactionListViewModel = remember {
-                    TransactionListViewModel(repository)
-                }
                 TransactionListScreen(
                     viewModel = listViewModel,
                     onNavigateToEditTransaction = { id ->
@@ -174,17 +181,11 @@ fun MainAppScaffold(
 
             // 3. Reports & Analytics
             composable(Screen.Reports.route) {
-                val reportsViewModel: ReportsViewModel = remember {
-                    ReportsViewModel(repository)
-                }
                 ReportsScreen(viewModel = reportsViewModel)
             }
 
             // 4. Budget Management
             composable(Screen.Budget.route) {
-                val budgetViewModel: BudgetViewModel = remember {
-                    BudgetViewModel(repository)
-                }
                 BudgetScreen(viewModel = budgetViewModel)
             }
 

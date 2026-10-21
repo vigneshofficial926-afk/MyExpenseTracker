@@ -54,13 +54,17 @@
       </div>
     </header>
 
-    <!-- Scrollable Active Screen Content -->
+    <!-- Scrollable Active Screen Content (Cached Tab Panes for Instant Navigation) -->
     <main class="screen-scroll-container" id="mainContent">
-      <!-- Injected by app.js -->
+      <div id="tab-pane-home" class="tab-pane active"></div>
+      <div id="tab-pane-transactions" class="tab-pane" style="display:none;"></div>
+      <div id="tab-pane-reports" class="tab-pane" style="display:none;"></div>
+      <div id="tab-pane-budget" class="tab-pane" style="display:none;"></div>
+      <div id="tab-pane-settings" class="tab-pane" style="display:none;"></div>
     </main>
 
     <!-- Floating Action Button: Add Transaction -->
-    <button class="fab" onclick="openAddModal('EXPENSE')" title="Add Transaction">
+    <button class="fab" id="mainFab" onclick="openAddModal('EXPENSE')" title="Add Transaction">
       <span class="material-symbols-rounded" style="font-size:28px;">add</span>
     </button>
 
@@ -72,7 +76,7 @@
       </button>
       <button class="nav-item" data-tab="transactions">
         <div class="nav-icon-wrap"><span class="material-symbols-rounded">receipt_long</span></div>
-        <span>History</span>
+        <span>Transactions</span>
       </button>
       <button class="nav-item" data-tab="reports">
         <div class="nav-icon-wrap"><span class="material-symbols-rounded">bar_chart</span></div>

@@ -549,6 +549,21 @@ body {
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
 }
 
+/* Tab Panes for Instant Multi-Section Navigation */
+.tab-pane {
+  display: block;
+  animation: tabFadeIn 0.12s ease-out;
+}
+
+@keyframes tabFadeIn {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .nav-item {
   display: flex;
   flex-direction: column;
@@ -563,7 +578,15 @@ body {
   border-radius: var(--radius-md);
   font-size: 10px;
   font-weight: 600;
-  transition: color 0.2s, transform 0.1s;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: color 0.15s ease, transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-item:active {
+  transform: scale(0.92);
 }
 
 .nav-item.active {
@@ -582,7 +605,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s;
+  transition: background 0.15s ease;
 }
 
 /* Floating Action Button */

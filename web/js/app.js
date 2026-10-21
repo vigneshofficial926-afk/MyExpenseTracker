@@ -82,22 +82,34 @@ const formatFriendlyDate = (timestamp) => {
   return formatDDMMYYYY(timestamp);
 };
 
-// Database Model Helper
+// Database Model Helper with in-memory caching for zero-latency reads
 const db = {
+  _cache: {},
   get(key, defaultValue) {
+    if (this._cache[key] !== undefined) {
+      return this._cache[key];
+    }
     try {
       const data = localStorage.getItem(key);
-      return data ? JSON.parse(data) : defaultValue;
+      const parsed = data ? JSON.parse(data) : defaultValue;
+      this._cache[key] = parsed;
+      return parsed;
     } catch (e) {
       return defaultValue;
     }
   },
   set(key, value) {
+    this._cache[key] = value;
     try {
       localStorage.setItem(key, JSON.stringify(value));
     } catch (e) {
       console.error(e);
     }
+    markAllTabsDirty();
+  },
+  invalidate(key) {
+    if (key) delete this._cache[key];
+    else this._cache = {};
   },
   init() {
     if (!localStorage.getItem(STORAGE_KEYS.CATEGORIES)) {
@@ -225,7 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
   processDueRecurring();
   setupEventListeners();
-  renderApp();
+  switchTab('home');
 });
 
 function loadSettings() {
@@ -279,9 +291,24 @@ function showToast(msg) {
   setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
-// 5. Views Rendering
-function renderApp() {
-  const container = document.getElementById('mainContent');
+// 5. Views Rendering & Multi-Section State
+const tabDirty = {
+  home: true,
+  transactions: true,
+  reports: true,
+  budget: true,
+  settings: true
+};
+
+function markAllTabsDirty() {
+  tabDirty.home = true;
+  tabDirty.transactions = true;
+  tabDirty.reports = true;
+  tabDirty.budget = true;
+  tabDirty.settings = true;
+}
+
+function renderTab(tab, container) {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).getTime();
@@ -290,17 +317,7 @@ function renderApp() {
   const accounts = db.get(STORAGE_KEYS.ACCOUNTS, []);
   const budgets = db.get(STORAGE_KEYS.BUDGETS, []);
 
-  // Update top bar title
-  const titleMap = {
-    home: 'My Expense Tracker',
-    transactions: 'Transactions',
-    reports: 'Reports & Analytics',
-    budget: 'Monthly Budget',
-    settings: 'Settings'
-  };
-  document.getElementById('topBarTitle').textContent = titleMap[state.currentTab] || 'My Expense Tracker';
-
-  switch (state.currentTab) {
+  switch (tab) {
     case 'home':
       renderHome(container, transactions, accounts, budgets, startOfMonth, endOfMonth);
       break;
@@ -316,6 +333,16 @@ function renderApp() {
     case 'settings':
       renderSettings(container);
       break;
+  }
+}
+
+function renderApp() {
+  markAllTabsDirty();
+  const current = state.currentTab || 'home';
+  const activePane = document.getElementById(`tab-pane-${current}`);
+  if (activePane) {
+    renderTab(current, activePane);
+    tabDirty[current] = false;
   }
 }
 
@@ -859,19 +886,28 @@ function quickAdd(title, amount, categoryName) {
   renderApp();
 }
 
+function renderTransactionsTab() {
+  const pane = document.getElementById('tab-pane-transactions');
+  if (pane) {
+    const transactions = db.get(STORAGE_KEYS.TRANSACTIONS, []);
+    renderTransactions(pane, transactions);
+    tabDirty.transactions = false;
+  }
+}
+
 function filterPeriod(p) {
   state.txFilterPeriod = p;
-  renderApp();
+  renderTransactionsTab();
 }
 
 function filterType(t) {
   state.txFilterType = t;
-  renderApp();
+  renderTransactionsTab();
 }
 
 function searchTransactions(q) {
   state.txSearchQuery = q;
-  renderApp();
+  renderTransactionsTab();
 }
 
 function toggleTheme() {
@@ -880,15 +916,56 @@ function toggleTheme() {
   const settings = db.get(STORAGE_KEYS.SETTINGS, {});
   settings.theme = state.theme;
   db.set(STORAGE_KEYS.SETTINGS, settings);
-  renderApp();
+  markAllTabsDirty();
+  const current = state.currentTab || 'home';
+  const activePane = document.getElementById(`tab-pane-${current}`);
+  if (activePane) {
+    renderTab(current, activePane);
+    tabDirty[current] = false;
+  }
 }
 
 function switchTab(tab) {
+  if (!tab) return;
   state.currentTab = tab;
+
+  // 1. Instant tab button active feedback (0ms)
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.tab === tab);
   });
-  renderApp();
+
+  // 2. Instant Top Bar Title update
+  const titleMap = {
+    home: 'My Expense Tracker',
+    transactions: 'Transactions',
+    reports: 'Reports & Analytics',
+    budget: 'Monthly Budget',
+    settings: 'Settings'
+  };
+  const topTitle = document.getElementById('topBarTitle');
+  if (topTitle) topTitle.textContent = titleMap[tab] || 'My Expense Tracker';
+
+  // 3. Instant FAB visibility
+  const fab = document.getElementById('mainFab');
+  if (fab) {
+    fab.style.display = (tab === 'home' || tab === 'transactions') ? 'flex' : 'none';
+  }
+
+  // 4. Instant multi-section visibility toggle (0ms latency, zero layout shifts)
+  const tabs = ['home', 'transactions', 'reports', 'budget', 'settings'];
+  tabs.forEach(t => {
+    const pane = document.getElementById(`tab-pane-${t}`);
+    if (pane) {
+      pane.style.display = (t === tab) ? 'block' : 'none';
+    }
+  });
+
+  // 5. Lazy render only if content is dirty or empty
+  const activePane = document.getElementById(`tab-pane-${tab}`);
+  if (activePane && (tabDirty[tab] || !activePane.innerHTML.trim())) {
+    renderTab(tab, activePane);
+    tabDirty[tab] = false;
+  }
 }
 
 // 7. Modals: Add / Edit Transaction
@@ -1285,7 +1362,8 @@ function renderTxItemHtml(tx) {
 
 function setupEventListeners() {
   document.querySelectorAll('.nav-item').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
       switchTab(btn.dataset.tab);
     });
   });
