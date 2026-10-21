@@ -100,9 +100,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v1.0.${{ github.run_number }}"
-          name: "My Expense Tracker v1.0.${{ github.run_number }}"
+          name: "Vignesh Expense Tracker v1.0.${{ github.run_number }}"
           body: |
-            ## 📱 My Expense Tracker — Android APK
+            ## 📱 Vignesh Expense Tracker — Android APK
 
             Download the `app-debug.apk` file below and install it directly on your Android phone.
 

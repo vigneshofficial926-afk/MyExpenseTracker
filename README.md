@@ -1,4 +1,4 @@
-# My Expense Tracker - Android Application
+# Vignesh Expense Tracker - Android Application
 
 A complete, modern, offline-first personal income and expense tracker built with **Kotlin**, **Jetpack Compose (Material 3)**, and **Room Database**. Tailored for Indian personal finance tracking with full support for Indian Rupee (₹), DD-MM-YYYY date formats, and zero cloud dependency.
 

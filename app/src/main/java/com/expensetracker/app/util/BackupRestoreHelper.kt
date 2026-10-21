@@ -64,7 +64,7 @@ object BackupRestoreHelper {
 
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "application/json"
-            putExtra(Intent.EXTRA_SUBJECT, "My Expense Tracker - Data Backup")
+            putExtra(Intent.EXTRA_SUBJECT, "Vignesh Expense Tracker - Data Backup")
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }

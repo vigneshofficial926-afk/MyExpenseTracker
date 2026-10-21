@@ -106,7 +106,7 @@ class SettingsViewModel(
             val totalExp = transactions.filter { it.type.name == "EXPENSE" && !it.isCreditCardBillPayment }.sumOf { it.amount }
 
             val sb = StringBuilder()
-            sb.append("=== MY EXPENSE TRACKER - MONTHLY REPORT ===\n")
+            sb.append("=== VIGNESH EXPENSE TRACKER - MONTHLY REPORT ===\n")
             sb.append("Date: ${DateUtils.formatDateTime(System.currentTimeMillis())}\n")
             sb.append("Total Income: ${CurrencyFormatter.format(totalInc)}\n")
             sb.append("Total Expense: ${CurrencyFormatter.format(totalExp)}\n")

@@ -1,5 +1,5 @@
 /**
- * My Expense Tracker - Core Web Application Engine
+ * Vignesh Expense Tracker - Core Web Application Engine
  * Offline-first persistent architecture using localStorage.
  */
 
@@ -936,14 +936,14 @@ function switchTab(tab) {
 
   // 2. Instant Top Bar Title update
   const titleMap = {
-    home: 'My Expense Tracker',
+    home: 'Vignesh Expense Tracker',
     transactions: 'Transactions',
     reports: 'Reports & Analytics',
     budget: 'Monthly Budget',
     settings: 'Settings'
   };
   const topTitle = document.getElementById('topBarTitle');
-  if (topTitle) topTitle.textContent = titleMap[tab] || 'My Expense Tracker';
+  if (topTitle) topTitle.textContent = titleMap[tab] || 'Vignesh Expense Tracker';
 
   // 3. Instant FAB visibility
   const fab = document.getElementById('mainFab');
@@ -1214,7 +1214,7 @@ function generateMonthlySummaryReport() {
   const exp = monthTxs.filter(t => t.type === 'EXPENSE' && !t.isCreditCardBillPayment).reduce((s,t) => s + t.amount, 0);
 
   let report = `======================================\n`;
-  report += `  MY EXPENSE TRACKER - MONTHLY REPORT \n`;
+  report += `  VIGNESH EXPENSE TRACKER - MONTHLY REPORT \n`;
   report += `======================================\n`;
   report += `Generated: ${new Date().toLocaleString()}\n\n`;
   report += `Total Income  : ${formatINR(inc)}\n`;

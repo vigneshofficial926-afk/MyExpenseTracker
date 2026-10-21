@@ -85,7 +85,7 @@ fun DashboardScreen(
                 title = {
                     Column {
                         Text(
-                            text = "My Expense Tracker",
+                            text = "Vignesh Expense Tracker",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
