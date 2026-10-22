@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   
-  <link rel="stylesheet" href="css/style.css?v=2.2">
+  <link rel="stylesheet" href="css/style.css?v=2.3">
 </head>
 <body>
 
@@ -52,6 +52,9 @@
         <p>Personal Financial Dashboard</p>
       </div>
       <div class="top-bar-actions">
+        <button class="icon-btn claude-top-bar-btn" onclick="openClaudeAssistant()" title="Claude Financial AI Assistant" style="color:#F59E0B;">
+          <span class="material-symbols-rounded">psychology</span>
+        </button>
         <a href="VigneshExpenseTracker.apk" download="VigneshExpenseTracker.apk" class="icon-btn" title="Download Android APK" style="color:#10b981;text-decoration:none;">
           <span class="material-symbols-rounded">android</span>
         </a>
@@ -98,6 +101,79 @@
         <span>Settings</span>
       </button>
     </nav>
+
+    <!-- Claude AI Financial Assistant Modal Sheet -->
+    <div class="modal-overlay" id="claudeAssistantModal">
+      <div class="modal-sheet claude-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <div class="claude-modal-title">
+            <div class="claude-avatar-icon">✦</div>
+            <div>
+              <h3 style="margin:0;font-size:16px;font-weight:800;display:flex;align-items:center;gap:6px;">
+                <span>Claude Financial AI</span>
+                <span class="claude-badge-tag" id="claudeModeBadge">Smart Engine</span>
+              </h3>
+              <p style="margin:2px 0 0 0;font-size:11px;color:var(--text-secondary);">Personal financial insights & advice</p>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button class="icon-btn" onclick="toggleClaudeApiKeySettings()" title="Anthropic Claude API Key">
+              <span class="material-symbols-rounded" style="font-size:18px;">key</span>
+            </button>
+            <button class="icon-btn" onclick="closeModal('claudeAssistantModal')" title="Close">
+              <span class="material-symbols-rounded">close</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Optional Claude API Key Panel -->
+        <div id="claudeApiSettingsPanel" class="claude-api-settings" style="display:none;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:4px;color:var(--claude-primary, #F59E0B);display:flex;align-items:center;gap:6px;">
+            <span class="material-symbols-rounded" style="font-size:16px;">vpn_key</span>
+            <span>Anthropic Claude API Key (Optional)</span>
+          </div>
+          <p style="font-size:11px;color:var(--text-secondary);margin:0 0 8px 0;line-height:1.4;">
+            Works 100% offline with built-in financial intelligence. Optionally provide an Anthropic API key to enable live Claude 3.5 Sonnet processing.
+          </p>
+          <div style="display:flex;gap:6px;">
+            <input type="password" id="claudeApiKeyInput" class="input-field" placeholder="sk-ant-api03-..." style="font-size:12px;padding:8px 12px;flex:1;">
+            <button type="button" class="btn-primary" onclick="saveClaudeApiKey()" style="padding:8px 14px;font-size:12px;background:var(--claude-gradient, linear-gradient(135deg, #D97706, #F59E0B));">Save</button>
+            <button type="button" class="btn-secondary" onclick="clearClaudeApiKey()" style="padding:8px 12px;font-size:12px;">Clear</button>
+          </div>
+          <div id="claudeApiKeyStatus" style="font-size:11px;margin-top:6px;font-weight:600;display:none;"></div>
+        </div>
+
+        <!-- Chat Message Conversation View -->
+        <div class="claude-messages-container" id="claudeMessages">
+          <!-- Dynamic message bubbles injected here -->
+        </div>
+
+        <!-- Quick Prompt Chips -->
+        <div class="claude-chips-row" id="claudeQuickChips">
+          <button type="button" class="claude-chip" onclick="handleClaudePrompt('Analyze this month\'s spending')">
+            <span>📊</span> Month Spending
+          </button>
+          <button type="button" class="claude-chip" onclick="handleClaudePrompt('Check my budget health')">
+            <span>🎯</span> Budget Health
+          </button>
+          <button type="button" class="claude-chip" onclick="handleClaudePrompt('What are my highest expenses?')">
+            <span>🏷️</span> Top Categories
+          </button>
+          <button type="button" class="claude-chip" onclick="handleClaudePrompt('3 smart tips to save money')">
+            <span>💡</span> Savings Tips
+          </button>
+        </div>
+
+        <!-- Chat Input Bar -->
+        <div class="claude-input-bar">
+          <input type="text" id="claudeUserInput" class="claude-input" placeholder="Ask Claude about your spending, budget..." onkeydown="if(event.key==='Enter') sendClaudeMessage()">
+          <button type="button" class="claude-send-btn" id="claudeSendBtn" onclick="sendClaudeMessage()" title="Send">
+            <span class="material-symbols-rounded" style="font-size:18px;">send</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Add / Edit Transaction Modal Sheet -->
     <div class="modal-overlay" id="addTxModal">
@@ -272,7 +348,7 @@
 
   </div>
 
-  <script src="js/app.js?v=2.2"></script>
+  <script src="js/app.js?v=2.3"></script>
   <script>
     function toggleDeviceFrame() {
       const shell = document.getElementById('deviceShell');
