@@ -36,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -148,23 +149,47 @@ fun TransactionListScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // 1. Search Box
+            // 1. Optimized Responsive Search Box
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = { viewModel.onSearchQueryChanged(it) },
-                placeholder = { Text("Search by description, tag, or category...") },
-                leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null) },
+                placeholder = {
+                    Text(
+                        text = "Search transactions...",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
                 trailingIcon = {
                     if (uiState.searchQuery.isNotEmpty()) {
                         IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
-                            Icon(imageVector = Icons.Default.Clear, contentDescription = "Clear")
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "Clear search",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    cursorColor = MaterialTheme.colorScheme.primary
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 singleLine = true
             )
 
@@ -185,38 +210,6 @@ fun TransactionListScreen(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
                         )
-                    )
-                }
-            }
-
-            // 3. Type & Payment Method Filter Chips
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Type filter chips
-                FilterChip(
-                    selected = uiState.selectedType == null,
-                    onClick = { viewModel.onTypeSelected(null) },
-                    label = { Text("All Types") }
-                )
-                listOf(TransactionType.EXPENSE, TransactionType.INCOME, TransactionType.TRANSFER).forEach { type ->
-                    FilterChip(
-                        selected = uiState.selectedType == type,
-                        onClick = { viewModel.onTypeSelected(if (uiState.selectedType == type) null else type) },
-                        label = { Text(type.displayName) }
-                    )
-                }
-
-                // Payment Method filter chips
-                PaymentMethod.entries.forEach { method ->
-                    FilterChip(
-                        selected = uiState.selectedPaymentMethod == method,
-                        onClick = { viewModel.onPaymentMethodSelected(if (uiState.selectedPaymentMethod == method) null else method) },
-                        label = { Text(method.displayName) }
                     )
                 }
             }

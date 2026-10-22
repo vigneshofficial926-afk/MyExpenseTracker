@@ -102,7 +102,9 @@ class TransactionListViewModel(
             filtered = filtered.filter {
                 it.description.contains(query, ignoreCase = true) ||
                 it.tags.contains(query, ignoreCase = true) ||
-                it.categoryName.contains(query, ignoreCase = true)
+                it.categoryName.contains(query, ignoreCase = true) ||
+                it.paymentMethod.displayName.contains(query, ignoreCase = true) ||
+                it.amount.toString().contains(query)
             }
         }
 

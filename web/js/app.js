@@ -539,16 +539,14 @@ function renderTransactions(container, transactions) {
     filtered = filtered.filter(tx => tx.dateTime >= m);
   }
 
-  if (state.txFilterType !== 'ALL') {
-    filtered = filtered.filter(tx => tx.type === state.txFilterType);
-  }
-
   if (state.txSearchQuery.trim()) {
     const q = state.txSearchQuery.toLowerCase();
     filtered = filtered.filter(tx => 
       (tx.description && tx.description.toLowerCase().includes(q)) ||
       (tx.categoryName && tx.categoryName.toLowerCase().includes(q)) ||
-      (tx.tags && tx.tags.toLowerCase().includes(q))
+      (tx.paymentMethod && tx.paymentMethod.toLowerCase().includes(q)) ||
+      (tx.tags && tx.tags.toLowerCase().includes(q)) ||
+      (tx.amount && tx.amount.toString().includes(q))
     );
   }
 
@@ -576,30 +574,37 @@ function renderTransactions(container, transactions) {
   }).join('');
 
   container.innerHTML = `
-    <!-- Search Bar -->
-    <div style="position:relative;margin-bottom:12px;">
-      <input type="text" class="input-field" placeholder="Search by note, category, or tag..." 
-             value="${state.txSearchQuery}" oninput="searchTransactions(this.value)">
-    </div>
-
-    <!-- Time Filter Chips -->
-    <div class="filter-chips-row" style="margin-bottom:8px;">
-      <button class="filter-chip-btn ${state.txFilterPeriod === 'all' ? 'active' : ''}" onclick="filterPeriod('all')">All Time</button>
-      <button class="filter-chip-btn ${state.txFilterPeriod === 'today' ? 'active' : ''}" onclick="filterPeriod('today')">Today</button>
-      <button class="filter-chip-btn ${state.txFilterPeriod === 'week' ? 'active' : ''}" onclick="filterPeriod('week')">This Week</button>
-      <button class="filter-chip-btn ${state.txFilterPeriod === 'month' ? 'active' : ''}" onclick="filterPeriod('month')">This Month</button>
-    </div>
-
-    <!-- Type Filters & CSV Export -->
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-      <div style="display:flex;gap:6px;">
-        <button class="filter-chip-btn ${state.txFilterType === 'ALL' ? 'active' : ''}" onclick="filterType('ALL')">All</button>
-        <button class="filter-chip-btn ${state.txFilterType === 'EXPENSE' ? 'active' : ''}" onclick="filterType('EXPENSE')">Expenses</button>
-        <button class="filter-chip-btn ${state.txFilterType === 'INCOME' ? 'active' : ''}" onclick="filterType('INCOME')">Income</button>
+    <!-- Optimized Search Box -->
+    <div class="tx-search-container">
+      <div class="tx-search-input-wrap">
+        <span class="material-symbols-rounded tx-search-icon">search</span>
+        <input type="text" 
+               id="txSearchInput"
+               class="tx-search-input" 
+               placeholder="Search transactions..." 
+               value="${state.txSearchQuery}" 
+               oninput="searchTransactions(this.value)"
+               autocomplete="off"
+               autocorrect="off"
+               spellcheck="false">
+        ${state.txSearchQuery ? `
+          <button type="button" class="tx-search-clear-btn" onclick="clearSearchInput()" title="Clear search" aria-label="Clear search">
+            <span class="material-symbols-rounded">close</span>
+          </button>
+        ` : ''}
       </div>
-      <button class="filter-chip-btn" onclick="exportCsv()" title="Download CSV">
-        <span class="material-symbols-rounded" style="font-size:16px;">upload_file</span>
-        CSV
+    </div>
+
+    <!-- Time Period Filters & CSV Export -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;">
+      <div class="filter-chips-row" style="margin-bottom:0;flex:1;">
+        <button class="filter-chip-btn ${state.txFilterPeriod === 'all' ? 'active' : ''}" onclick="filterPeriod('all')">All Time</button>
+        <button class="filter-chip-btn ${state.txFilterPeriod === 'today' ? 'active' : ''}" onclick="filterPeriod('today')">Today</button>
+        <button class="filter-chip-btn ${state.txFilterPeriod === 'week' ? 'active' : ''}" onclick="filterPeriod('week')">This Week</button>
+        <button class="filter-chip-btn ${state.txFilterPeriod === 'month' ? 'active' : ''}" onclick="filterPeriod('month')">This Month</button>
+      </div>
+      <button class="filter-chip-btn" onclick="exportCsv()" title="Download CSV" style="flex-shrink:0;">
+        <span class="material-symbols-rounded" style="font-size:16px;">upload_file</span> CSV
       </button>
     </div>
 
@@ -887,14 +892,21 @@ function filterPeriod(p) {
   renderTransactionsTab();
 }
 
-function filterType(t) {
-  state.txFilterType = t;
-  renderTransactionsTab();
-}
-
 function searchTransactions(q) {
   state.txSearchQuery = q;
   renderTransactionsTab();
+  const input = document.getElementById('txSearchInput');
+  if (input) {
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+}
+
+function clearSearchInput() {
+  state.txSearchQuery = '';
+  renderTransactionsTab();
+  const input = document.getElementById('txSearchInput');
+  if (input) input.focus();
 }
 
 function toggleTheme() {
