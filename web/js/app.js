@@ -1024,6 +1024,28 @@ function openAddModal(defaultType = 'EXPENSE', txId = null) {
   const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   document.getElementById('txDateInput').value = dateStr;
 
+  // Payment Method selection and preservation
+  const pmEl = document.getElementById('txPaymentMethod');
+  if (pmEl) {
+    const targetPm = (existing && existing.paymentMethod) ? existing.paymentMethod : 'UPI';
+    let matched = false;
+    for (let i = 0; i < pmEl.options.length; i++) {
+      if (pmEl.options[i].value.toLowerCase() === targetPm.toLowerCase()) {
+        pmEl.selectedIndex = i;
+        matched = true;
+        break;
+      }
+    }
+    // If existing transaction has a custom or legacy payment method, append it so data is never lost
+    if (!matched && targetPm) {
+      const opt = document.createElement('option');
+      opt.value = targetPm;
+      opt.textContent = targetPm;
+      pmEl.appendChild(opt);
+      pmEl.value = targetPm;
+    }
+  }
+
   // Render type segments (Expense / Income / Transfer)
   document.querySelectorAll('.segment-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.type === type);
@@ -1103,9 +1125,14 @@ function saveTransactionFromModal() {
     existing = transactions.find(t => t.id === state.editingTxId);
   }
 
-  // Payment method removed from Quick Add (+) menu; defaults cleanly to UPI or existing value
+  // Payment method selection and validation
   const pmEl = document.getElementById('txPaymentMethod');
-  const paymentMethod = pmEl ? pmEl.value : (existing ? (existing.paymentMethod || 'UPI') : 'UPI');
+  let paymentMethod = 'UPI';
+  if (pmEl && pmEl.value && pmEl.value.trim()) {
+    paymentMethod = pmEl.value.trim();
+  } else if (existing && existing.paymentMethod) {
+    paymentMethod = existing.paymentMethod;
+  }
 
   const candidate = {
     id: state.editingTxId || (Date.now() + Math.random()),

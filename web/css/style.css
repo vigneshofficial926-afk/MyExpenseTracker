@@ -845,6 +845,24 @@ body {
   border-color: var(--primary);
 }
 
+select.input-field {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='20px' viewBox='0 0 24 24' width='20px' fill='%239ca3af'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 20px;
+  padding-right: 40px;
+  cursor: pointer;
+}
+
+select.input-field option {
+  background: var(--surface-color);
+  color: var(--text-primary);
+  padding: 8px;
+}
+
 /* Optimized Transactions Search Bar */
 .tx-search-container {
   position: relative;
