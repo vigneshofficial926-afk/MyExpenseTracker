@@ -210,6 +210,11 @@ body {
     max-height: 100%;
     border-radius: 0;
     box-shadow: none;
+    transition: none !important;
+  }
+
+  .tab-pane {
+    animation: none !important;
   }
 
   .phone-status-bar {
@@ -647,6 +652,9 @@ body {
   padding: 0 10px;
   z-index: 45;
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Tab Panes for Instant Multi-Section Navigation */
@@ -661,6 +669,16 @@ body {
   }
   to {
     opacity: 1;
+  }
+}
+
+/* Respect user's reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
   }
 }
 

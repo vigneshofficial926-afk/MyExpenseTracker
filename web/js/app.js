@@ -924,8 +924,30 @@ function toggleTheme() {
   }
 }
 
+const tabScrollPositions = {
+  home: 0,
+  transactions: 0,
+  reports: 0,
+  budget: 0,
+  settings: 0
+};
+
 function switchTab(tab) {
   if (!tab) return;
+  const currentTab = state.currentTab;
+  const activePane = document.getElementById(`tab-pane-${tab}`);
+
+  // Prevent duplicate work if user taps the already active tab (and it's not dirty)
+  if (currentTab === tab && activePane && activePane.hasChildNodes() && !tabDirty[tab]) {
+    return;
+  }
+
+  // Preserve scroll position of current tab before switching
+  const scrollContainer = document.getElementById('mainContent');
+  if (scrollContainer && currentTab) {
+    tabScrollPositions[currentTab] = scrollContainer.scrollTop;
+  }
+
   state.currentTab = tab;
 
   // 1. Instant tab button active feedback (0ms)
@@ -959,11 +981,15 @@ function switchTab(tab) {
     }
   });
 
-  // 5. Lazy render only if content is dirty or empty
-  const activePane = document.getElementById(`tab-pane-${tab}`);
-  if (activePane && (tabDirty[tab] || !activePane.innerHTML.trim())) {
+  // 5. Lazy render only if content is dirty or empty (O(1) child check instead of innerHTML string serialization)
+  if (activePane && (tabDirty[tab] || !activePane.hasChildNodes())) {
     renderTab(tab, activePane);
     tabDirty[tab] = false;
+  }
+
+  // 6. Restore destination tab scroll position instantly
+  if (scrollContainer) {
+    scrollContainer.scrollTop = tabScrollPositions[tab] || 0;
   }
 }
 
@@ -1487,11 +1513,26 @@ function renderTxItemHtml(tx) {
   `;
 }
 
+let lastNavTimestamp = 0;
+function handleTabNav(tab) {
+  const now = Date.now();
+  if (now - lastNavTimestamp < 80) return; // Prevent duplicate rapid taps
+  lastNavTimestamp = now;
+  switchTab(tab);
+}
+
 function setupEventListeners() {
   document.querySelectorAll('.nav-item').forEach(btn => {
+    // Fast pointer response on mobile touch devices (eliminates 300ms click delay)
+    btn.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') {
+        handleTabNav(btn.dataset.tab);
+      }
+    }, { passive: true });
+
     btn.addEventListener('click', (e) => {
       e.preventDefault();
-      switchTab(btn.dataset.tab);
+      handleTabNav(btn.dataset.tab);
     });
   });
 }

@@ -118,8 +118,8 @@ class DashboardViewModel(
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = DashboardUiState(isLoading = true)
+        started = SharingStarted.Lazily,
+        initialValue = DashboardUiState(isLoading = false)
     )
 
     init {

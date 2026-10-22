@@ -165,8 +165,8 @@ class TransactionListViewModel(
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = TransactionListUiState(isLoading = true)
+        started = SharingStarted.Lazily,
+        initialValue = TransactionListUiState(isLoading = false)
     )
 
     fun onSearchQueryChanged(q: String) { _searchQuery.value = q }
