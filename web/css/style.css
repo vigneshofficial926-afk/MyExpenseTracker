@@ -909,3 +909,75 @@ body {
   background: var(--primary-container);
   color: var(--primary);
 }
+
+/* Danger & Secondary Buttons */
+.btn-danger {
+  width: 100%;
+  padding: 14px 20px;
+  background: var(--expense);
+  color: #FFFFFF;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.btn-danger:hover {
+  opacity: 0.92;
+}
+
+.btn-danger:active {
+  transform: scale(0.98);
+}
+
+.btn-danger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  width: 100%;
+  padding: 13px 20px;
+  background: var(--surface-variant);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.btn-secondary:hover {
+  background: var(--surface-color);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  border-top-color: #FFFFFF;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

@@ -145,9 +145,14 @@ class SettingsViewModel(
 
     fun clearAllData() {
         viewModelScope.launch {
-            repository.clearAllData()
-            closeClearDataConfirmation()
-            _uiState.value = _uiState.value.copy(operationMessage = "All app data has been reset to defaults.")
+            try {
+                repository.clearAllData()
+                closeClearDataConfirmation()
+                _uiState.value = _uiState.value.copy(operationMessage = "All application data has been permanently cleared.")
+            } catch (e: Exception) {
+                closeClearDataConfirmation()
+                _uiState.value = _uiState.value.copy(operationMessage = "Failed to clear data: ${e.message}")
+            }
         }
     }
 

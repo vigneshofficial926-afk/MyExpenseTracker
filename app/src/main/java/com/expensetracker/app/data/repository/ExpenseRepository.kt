@@ -210,7 +210,7 @@ class ExpenseRepository(
         savingsGoalDao.deleteAllGoals()
         categoryDao.deleteAllCategories()
         accountDao.deleteAllAccounts()
-        ExpenseDatabase.populateInitialData(database)
+        ExpenseDatabase.populateCleanDefaultData(database)
     }
 
     // --- Direct Export Data Access ---

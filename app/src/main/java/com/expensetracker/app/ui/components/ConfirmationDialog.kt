@@ -33,10 +33,7 @@ fun ConfirmationDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = {
-                    onConfirm()
-                    onDismiss()
-                },
+                onClick = onConfirm,
                 colors = if (isDestructive) {
                     ButtonDefaults.textButtonColors(contentColor = ExpenseRed)
                 } else {

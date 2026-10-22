@@ -166,5 +166,47 @@ abstract class ExpenseDatabase : RoomDatabase() {
                 )
             )
         }
+
+        suspend fun populateCleanDefaultData(database: ExpenseDatabase) {
+            val categoryDao = database.categoryDao()
+            val accountDao = database.accountDao()
+
+            val defaultExpenseCategories = listOf(
+                CategoryEntity(name = "Food and Groceries", type = TransactionType.EXPENSE, iconName = "restaurant", colorHex = "#F97316", isDefault = true, sortOrder = 1),
+                CategoryEntity(name = "Hotel and Restaurants", type = TransactionType.EXPENSE, iconName = "local_cafe", colorHex = "#EA580C", isDefault = true, sortOrder = 2),
+                CategoryEntity(name = "Tea, Coffee and Snacks", type = TransactionType.EXPENSE, iconName = "coffee", colorHex = "#B45309", isDefault = true, sortOrder = 3),
+                CategoryEntity(name = "Transportation and Fuel", type = TransactionType.EXPENSE, iconName = "directions_car", colorHex = "#3B82F6", isDefault = true, sortOrder = 4),
+                CategoryEntity(name = "Rent", type = TransactionType.EXPENSE, iconName = "home", colorHex = "#6366F1", isDefault = true, sortOrder = 5),
+                CategoryEntity(name = "Electricity and Utilities", type = TransactionType.EXPENSE, iconName = "bolt", colorHex = "#EAB308", isDefault = true, sortOrder = 6),
+                CategoryEntity(name = "Mobile and Internet", type = TransactionType.EXPENSE, iconName = "phone_android", colorHex = "#06B6D4", isDefault = true, sortOrder = 7),
+                CategoryEntity(name = "Shopping", type = TransactionType.EXPENSE, iconName = "shopping_bag", colorHex = "#EC4899", isDefault = true, sortOrder = 8),
+                CategoryEntity(name = "Health and Medical", type = TransactionType.EXPENSE, iconName = "local_hospital", colorHex = "#EF4444", isDefault = true, sortOrder = 9),
+                CategoryEntity(name = "Entertainment", type = TransactionType.EXPENSE, iconName = "movie", colorHex = "#8B5CF6", isDefault = true, sortOrder = 10),
+                CategoryEntity(name = "Travel", type = TransactionType.EXPENSE, iconName = "flight", colorHex = "#14B8A6", isDefault = true, sortOrder = 11),
+                CategoryEntity(name = "Education", type = TransactionType.EXPENSE, iconName = "school", colorHex = "#10B981", isDefault = true, sortOrder = 12),
+                CategoryEntity(name = "EMI and Loan Payments", type = TransactionType.EXPENSE, iconName = "credit_card", colorHex = "#D97706", isDefault = true, sortOrder = 13),
+                CategoryEntity(name = "Family Expenses", type = TransactionType.EXPENSE, iconName = "groups", colorHex = "#F43F5E", isDefault = true, sortOrder = 14),
+                CategoryEntity(name = "Subscriptions", type = TransactionType.EXPENSE, iconName = "subscriptions", colorHex = "#A855F7", isDefault = true, sortOrder = 15),
+                CategoryEntity(name = "Other Expenses", type = TransactionType.EXPENSE, iconName = "more_horiz", colorHex = "#64748B", isDefault = true, sortOrder = 16)
+            )
+            categoryDao.insertAll(defaultExpenseCategories)
+
+            val defaultIncomeCategories = listOf(
+                CategoryEntity(name = "Salary", type = TransactionType.INCOME, iconName = "account_balance_wallet", colorHex = "#10B981", isDefault = true, sortOrder = 1),
+                CategoryEntity(name = "Freelance Income", type = TransactionType.INCOME, iconName = "laptop_mac", colorHex = "#0EA5E9", isDefault = true, sortOrder = 2),
+                CategoryEntity(name = "Business Income", type = TransactionType.INCOME, iconName = "trending_up", colorHex = "#8B5CF6", isDefault = true, sortOrder = 3),
+                CategoryEntity(name = "Interest", type = TransactionType.INCOME, iconName = "savings", colorHex = "#14B8A6", isDefault = true, sortOrder = 4),
+                CategoryEntity(name = "Gifts", type = TransactionType.INCOME, iconName = "card_giftcard", colorHex = "#EC4899", isDefault = true, sortOrder = 5),
+                CategoryEntity(name = "Other Income", type = TransactionType.INCOME, iconName = "attach_money", colorHex = "#64748B", isDefault = true, sortOrder = 6)
+            )
+            categoryDao.insertAll(defaultIncomeCategories)
+
+            val defaultAccounts = listOf(
+                AccountEntity(name = "Primary Bank (HDFC)", accountType = "BANK", openingBalance = 0.0, currentBalance = 0.0, colorHex = "#0D9488"),
+                AccountEntity(name = "Cash Wallet", accountType = "CASH", openingBalance = 0.0, currentBalance = 0.0, colorHex = "#0284C7"),
+                AccountEntity(name = "Credit Card", accountType = "CREDIT_CARD", openingBalance = 0.0, currentBalance = 0.0, colorHex = "#F43F5E")
+            )
+            accountDao.insertAll(defaultAccounts)
+        }
     }
 }

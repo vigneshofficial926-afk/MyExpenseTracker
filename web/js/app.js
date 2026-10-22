@@ -112,20 +112,16 @@ const db = {
     else this._cache = {};
   },
   init() {
-    if (!localStorage.getItem(STORAGE_KEYS.CATEGORIES)) {
+    const isInitialized = localStorage.getItem('met_is_initialized');
+    if (!isInitialized) {
+      // First-ever launch: seed initial defaults
       this.set(STORAGE_KEYS.CATEGORIES, DEFAULT_CATEGORIES);
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.ACCOUNTS)) {
       this.set(STORAGE_KEYS.ACCOUNTS, DEFAULT_ACCOUNTS);
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.BUDGETS)) {
       const now = new Date();
       const currentMonthKey = `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
       this.set(STORAGE_KEYS.BUDGETS, [
         { id: 1, monthYear: currentMonthKey, categoryId: null, budgetAmount: 35000 }
       ]);
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.GOALS)) {
       this.set(STORAGE_KEYS.GOALS, [
         {
           id: 1,
@@ -136,8 +132,6 @@ const db = {
           notes: "Target 6 months living expenses"
         }
       ]);
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.RECURRING)) {
       this.set(STORAGE_KEYS.RECURRING, [
         {
           id: 1,
@@ -151,19 +145,36 @@ const db = {
           isActive: true
         }
       ]);
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.TRANSACTIONS)) {
-      // Seed some initial recent transactions
-      const now = Date.now();
       const sampleTxs = [
-        { id: 1, amount: 65000, type: "INCOME", categoryName: "Salary", paymentMethod: "Bank Transfer", description: "Monthly Salary Credit", tags: "job", dateTime: now - 5 * 86400000, isCreditCardBillPayment: false },
-        { id: 2, amount: 15000, type: "EXPENSE", categoryName: "Rent", paymentMethod: "Bank Transfer", description: "Apartment Rent", tags: "home", dateTime: now - 4 * 86400000, isCreditCardBillPayment: false },
-        { id: 3, amount: 2450, type: "EXPENSE", categoryName: "Food and Groceries", paymentMethod: "UPI", description: "Supermarket Groceries & Fruits", tags: "groceries", dateTime: now - 2 * 86400000, isCreditCardBillPayment: false },
-        { id: 4, amount: 850, type: "EXPENSE", categoryName: "Transportation and Fuel", paymentMethod: "UPI", description: "Petrol for Bike", tags: "fuel", dateTime: now - 1 * 86400000, isCreditCardBillPayment: false },
-        { id: 5, amount: 1200, type: "EXPENSE", categoryName: "Hotel and Restaurants", paymentMethod: "Debit Card", description: "Dinner with Family", tags: "dining", dateTime: now - 12 * 3600000, isCreditCardBillPayment: false },
-        { id: 6, amount: 120, type: "EXPENSE", categoryName: "Tea, Coffee and Snacks", paymentMethod: "UPI", description: "Chai & Samosa", tags: "snacks", dateTime: now - 3 * 3600000, isCreditCardBillPayment: false }
+        { id: 1, amount: 65000, type: "INCOME", categoryName: "Salary", paymentMethod: "Bank Transfer", description: "Monthly Salary Credit", tags: "job", dateTime: now.getTime() - 5 * 86400000, isCreditCardBillPayment: false },
+        { id: 2, amount: 15000, type: "EXPENSE", categoryName: "Rent", paymentMethod: "Bank Transfer", description: "Apartment Rent", tags: "home", dateTime: now.getTime() - 4 * 86400000, isCreditCardBillPayment: false },
+        { id: 3, amount: 2450, type: "EXPENSE", categoryName: "Food and Groceries", paymentMethod: "UPI", description: "Supermarket Groceries & Fruits", tags: "groceries", dateTime: now.getTime() - 2 * 86400000, isCreditCardBillPayment: false },
+        { id: 4, amount: 850, type: "EXPENSE", categoryName: "Transportation and Fuel", paymentMethod: "UPI", description: "Petrol for Bike", tags: "fuel", dateTime: now.getTime() - 1 * 86400000, isCreditCardBillPayment: false },
+        { id: 5, amount: 1200, type: "EXPENSE", categoryName: "Hotel and Restaurants", paymentMethod: "Debit Card", description: "Dinner with Family", tags: "dining", dateTime: now.getTime() - 12 * 3600000, isCreditCardBillPayment: false },
+        { id: 6, amount: 120, type: "EXPENSE", categoryName: "Tea, Coffee and Snacks", paymentMethod: "UPI", description: "Chai & Samosa", tags: "snacks", dateTime: now.getTime() - 3 * 3600000, isCreditCardBillPayment: false }
       ];
       this.set(STORAGE_KEYS.TRANSACTIONS, sampleTxs);
+      localStorage.setItem('met_is_initialized', 'true');
+    } else {
+      // Subsequent visits: ensure collections are valid arrays and don't re-seed deleted data
+      if (localStorage.getItem(STORAGE_KEYS.CATEGORIES) === null) {
+        this.set(STORAGE_KEYS.CATEGORIES, DEFAULT_CATEGORIES);
+      }
+      if (localStorage.getItem(STORAGE_KEYS.ACCOUNTS) === null) {
+        this.set(STORAGE_KEYS.ACCOUNTS, DEFAULT_ACCOUNTS.map(a => ({ ...a, openingBalance: 0, currentBalance: 0 })));
+      }
+      if (localStorage.getItem(STORAGE_KEYS.TRANSACTIONS) === null) {
+        this.set(STORAGE_KEYS.TRANSACTIONS, []);
+      }
+      if (localStorage.getItem(STORAGE_KEYS.BUDGETS) === null) {
+        this.set(STORAGE_KEYS.BUDGETS, []);
+      }
+      if (localStorage.getItem(STORAGE_KEYS.GOALS) === null) {
+        this.set(STORAGE_KEYS.GOALS, []);
+      }
+      if (localStorage.getItem(STORAGE_KEYS.RECURRING) === null) {
+        this.set(STORAGE_KEYS.RECURRING, []);
+      }
     }
   }
 };
@@ -367,7 +378,7 @@ function renderHome(container, transactions, accounts, budgets, startOfMonth, en
 
   // Budget alert
   const currentMonthKey = `${String(new Date().getMonth() + 1).padStart(2, '0')}-${new Date().getFullYear()}`;
-  const budgetObj = budgets.find(b => b.monthYear === currentMonthKey && !b.categoryId) || { budgetAmount: 35000 };
+  const budgetObj = budgets.find(b => b.monthYear === currentMonthKey && !b.categoryId) || { budgetAmount: 0 };
   const overallBudget = budgetObj.budgetAmount || 0;
   const budgetUtilization = overallBudget > 0 ? (monthExpense / overallBudget) * 100 : 0;
   const remainingBudget = overallBudget - monthExpense;
@@ -676,7 +687,7 @@ function renderReports(container, transactions, budgets, startOfMonth, endOfMont
 // BUDGET TAB
 function renderBudget(container, transactions, accounts, budgets, startOfMonth, endOfMonth) {
   const currentMonthKey = `${String(new Date().getMonth() + 1).padStart(2, '0')}-${new Date().getFullYear()}`;
-  const overallObj = budgets.find(b => b.monthYear === currentMonthKey && !b.categoryId) || { budgetAmount: 35000 };
+  const overallObj = budgets.find(b => b.monthYear === currentMonthKey && !b.categoryId) || { budgetAmount: 0 };
   const overallLimit = overallObj.budgetAmount || 0;
   
   const monthExpense = FinancialCalculator.calculateMonthlyExpenses(transactions, startOfMonth, endOfMonth);
@@ -829,13 +840,18 @@ function renderSettings(container) {
 
     <!-- Danger Zone -->
     <div class="section-label" style="margin-top:16px;color:var(--expense);">Danger Zone</div>
-    <div class="card" style="background:var(--expense-light);border-color:rgba(239,68,68,0.2);cursor:pointer;" onclick="confirmResetData()">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span class="material-symbols-rounded" style="color:var(--expense)">delete_forever</span>
-        <div>
-          <div style="font-size:14px;font-weight:700;color:var(--expense);">Reset All App Data</div>
-          <div style="font-size:11px;color:var(--expense);">Erase transactions and restore seed defaults</div>
+    <div class="card" id="btnClearAllDataCard" style="background:var(--expense-light);border-color:rgba(239,68,68,0.25);cursor:pointer;" onclick="openClearDataModal()">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:36px;height:36px;border-radius:50%;background:rgba(239,68,68,0.15);color:var(--expense);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <span class="material-symbols-rounded">delete_forever</span>
+          </div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--expense);">Clear All App Data</div>
+            <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">Permanently erase transactions, budgets, goals & reset accounts</div>
+          </div>
         </div>
+        <button type="button" class="chip-btn" id="btnClearAllData" style="background:var(--expense);color:#ffffff;border:none;font-weight:700;flex-shrink:0;" onclick="event.stopPropagation();openClearDataModal();">Clear</button>
       </div>
     </div>
   `;
@@ -1257,14 +1273,107 @@ function downloadJsonBackup() {
 }
 
 function confirmResetData() {
-  if (confirm('Are you sure you want to reset all data? This will clear custom transactions and restore defaults.')) {
-    if (confirm('FINAL CONFIRMATION: This action is permanent and cannot be undone! Erase everything?')) {
-      localStorage.clear();
-      db.init();
-      showToast('All app data has been reset to defaults.');
-      renderApp();
+  openClearDataModal();
+}
+
+function openClearDataModal() {
+  const modal = document.getElementById('clearDataConfirmModal');
+  const btn = document.getElementById('confirmClearDataBtn');
+  const cancelBtn = document.getElementById('cancelClearDataBtn');
+  const spinner = document.getElementById('clearDataSpinner');
+  const icon = document.getElementById('clearDataBtnIcon');
+  const text = document.getElementById('clearDataBtnText');
+  const errAlert = document.getElementById('clearDataErrorAlert');
+
+  if (errAlert) errAlert.style.display = 'none';
+  if (btn) btn.disabled = false;
+  if (cancelBtn) cancelBtn.disabled = false;
+  if (spinner) spinner.style.display = 'none';
+  if (icon) icon.style.display = 'inline-block';
+  if (text) text.textContent = 'Permanently Delete Everything';
+
+  if (modal) modal.classList.add('active');
+}
+
+function executeClearAllData() {
+  const btn = document.getElementById('confirmClearDataBtn');
+  const cancelBtn = document.getElementById('cancelClearDataBtn');
+  const spinner = document.getElementById('clearDataSpinner');
+  const icon = document.getElementById('clearDataBtnIcon');
+  const text = document.getElementById('clearDataBtnText');
+  const errAlert = document.getElementById('clearDataErrorAlert');
+
+  // Disable buttons and show loading state
+  if (btn) btn.disabled = true;
+  if (cancelBtn) cancelBtn.disabled = true;
+  if (spinner) spinner.style.display = 'inline-block';
+  if (icon) icon.style.display = 'none';
+  if (text) text.textContent = 'Deleting all application data...';
+  if (errAlert) errAlert.style.display = 'none';
+
+  setTimeout(() => {
+    try {
+      // 1. Invalidate and clear all in-memory cache
+      db.invalidate();
+
+      // 2. Permanently clear all user financial records from localStorage
+      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.BUDGETS, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.RECURRING, JSON.stringify([]));
+
+      // Reset categories to standard defaults (purging any user custom categories)
+      localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(DEFAULT_CATEGORIES));
+
+      // Reset all accounts to ₹0 opening & current balances
+      const zeroAccounts = DEFAULT_ACCOUNTS.map(a => ({
+        ...a,
+        openingBalance: 0,
+        currentBalance: 0
+      }));
+      localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(zeroAccounts));
+
+      // Mark as initialized so db.init will not re-seed mock data on future page reloads
+      localStorage.setItem('met_is_initialized', 'true');
+
+      // Invalidate memory cache again to ensure fresh reads
+      db.invalidate();
+
+      // 3. Mark all views as dirty and force immediate re-render of ALL tab panes
+      markAllTabsDirty();
+      const allTabs = ['home', 'transactions', 'reports', 'budget', 'settings'];
+      allTabs.forEach(tabName => {
+        const pane = document.getElementById(`tab-pane-${tabName}`);
+        if (pane) {
+          renderTab(tabName, pane);
+          tabDirty[tabName] = false;
+        }
+      });
+
+      // 4. Reset balance display directly in DOM
+      const balEl = document.getElementById('balanceAmountDisplay');
+      if (balEl) {
+        balEl.textContent = formatINR(0);
+      }
+
+      // Close modal
+      closeModal('clearDataConfirmModal');
+
+      // 5. Display success notification
+      showToast('All application data has been permanently cleared.');
+    } catch (err) {
+      console.error('Failed to clear application data:', err);
+      if (errAlert) {
+        errAlert.textContent = 'Failed to delete data: ' + (err.message || 'Unknown error') + '. Please try again.';
+        errAlert.style.display = 'block';
+      }
+      if (btn) btn.disabled = false;
+      if (cancelBtn) cancelBtn.disabled = false;
+      if (spinner) spinner.style.display = 'none';
+      if (icon) icon.style.display = 'inline-block';
+      if (text) text.textContent = 'Retry Permanent Deletion';
     }
-  }
+  }, 250);
 }
 
 // 10. Security PIN
