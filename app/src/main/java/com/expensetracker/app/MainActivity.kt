@@ -111,6 +111,7 @@ fun MainAppScaffold(
     val currentRoute = navBackStackEntry?.destination?.route
 
     val isBottomBarVisible = currentRoute in Screen.bottomNavItems.map { it.route }
+    val isFabVisible = currentRoute == Screen.Home.route || currentRoute == Screen.Transactions.route
 
     // Retain ViewModels at Scaffold scope so bottom tab switching does not recreate them.
     // This keeps Room database flows hot and cached for 0ms instantaneous navigation.
@@ -127,7 +128,7 @@ fun MainAppScaffold(
             }
         },
         floatingActionButton = {
-            if (isBottomBarVisible) {
+            if (isFabVisible) {
                 FloatingActionButton(
                     onClick = {
                         navController.navigate(Screen.AddEditTransaction.createRoute(type = TransactionType.EXPENSE.name))

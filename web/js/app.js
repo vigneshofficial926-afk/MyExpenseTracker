@@ -350,6 +350,10 @@ function renderTab(tab, container) {
 function renderApp() {
   markAllTabsDirty();
   const current = state.currentTab || 'home';
+  const fab = document.getElementById('mainFab');
+  if (fab) {
+    fab.style.display = (current === 'home' || current === 'transactions') ? 'flex' : 'none';
+  }
   const activePane = document.getElementById(`tab-pane-${current}`);
   if (activePane) {
     renderTab(current, activePane);
@@ -1405,6 +1409,8 @@ function promptSetPin() {
 function showPinScreen() {
   const screen = document.getElementById('pinLockScreen');
   screen.style.display = 'flex';
+  const fab = document.getElementById('mainFab');
+  if (fab) fab.style.display = 'none';
   enteredPin = '';
   updatePinDots();
 }
@@ -1417,6 +1423,8 @@ function pressPinKey(num) {
       if (enteredPin === state.pinCode) {
         document.getElementById('pinLockScreen').style.display = 'none';
         state.isUnlocked = true;
+        const fab = document.getElementById('mainFab');
+        if (fab) fab.style.display = (state.currentTab === 'home' || state.currentTab === 'transactions') ? 'flex' : 'none';
       } else {
         alert('Incorrect PIN. Try again.');
         enteredPin = '';
