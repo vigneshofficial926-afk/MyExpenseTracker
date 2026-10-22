@@ -153,28 +153,126 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   background: var(--bg-color);
   position: sticky;
   top: 0;
   z-index: 40;
 }
 
+.top-bar-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .top-bar-title h1 {
   font-size: 20px;
   font-weight: 800;
   letter-spacing: -0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  line-height: 1.25;
 }
 
 .top-bar-title p {
   font-size: 11px;
   color: var(--text-secondary);
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 2px 0 0 0;
 }
 
 .top-bar-actions {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Responsive Mobile Header Optimization (320px - 480px) */
+@media (max-width: 480px) {
+  body {
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .device-shell {
+    max-width: 100%;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100%;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .phone-status-bar {
+    display: none;
+  }
+
+  .shell-controls {
+    display: none;
+  }
+
+  .top-app-bar {
+    padding: 10px 16px;
+    gap: 10px;
+  }
+
+  .top-bar-title h1 {
+    font-size: 18px;
+    letter-spacing: -0.3px;
+  }
+
+  .top-bar-title p {
+    font-size: 10.5px;
+  }
+
+  .top-bar-actions {
+    gap: 4px;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media (max-width: 360px) {
+  .top-app-bar {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .top-bar-title h1 {
+    font-size: 16px;
+  }
+
+  .top-bar-title p {
+    font-size: 10px;
+  }
+
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (max-width: 330px) {
+  .top-app-bar {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .top-bar-title h1 {
+    font-size: 15px;
+  }
 }
 
 .icon-btn {
