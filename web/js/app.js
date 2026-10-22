@@ -1247,22 +1247,30 @@ function drawWeeklyBarChart(canvasId, days, values, highlightIdx) {
     const x = idx * spacing + (spacing - barWidth) / 2;
     const y = height - 24 - barHeight;
 
-    // Bar
-    ctx.fillStyle = (idx === highlightIdx) ? '#0284C7' : '#0D9488';
+    // Impeccable dynamic gradient bars
+    const gradient = ctx.createLinearGradient(0, y, 0, y + barHeight);
+    if (idx === highlightIdx) {
+      gradient.addColorStop(0, '#34D399');
+      gradient.addColorStop(1, '#059669');
+    } else {
+      gradient.addColorStop(0, 'rgba(16, 185, 129, 0.45)');
+      gradient.addColorStop(1, 'rgba(16, 185, 129, 0.15)');
+    }
+    ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.roundRect(x, y, barWidth, barHeight, [4, 4, 0, 0]);
+    ctx.roundRect(x, y, barWidth, barHeight, [6, 6, 0, 0]);
     ctx.fill();
 
     // Day Label
-    ctx.fillStyle = (idx === highlightIdx) ? '#0284C7' : '#94A3B8';
+    ctx.fillStyle = (idx === highlightIdx) ? '#10B981' : '#94A3B8';
     ctx.font = (idx === highlightIdx ? 'bold ' : '') + '11px Plus Jakarta Sans, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(day, x + barWidth / 2, height - 6);
 
     // Value on top if > 0
     if (val > 0) {
-      ctx.fillStyle = '#94A3B8';
-      ctx.font = '10px Plus Jakarta Sans, sans-serif';
+      ctx.fillStyle = (idx === highlightIdx) ? '#34D399' : '#94A3B8';
+      ctx.font = (idx === highlightIdx ? 'bold ' : '') + '10px Plus Jakarta Sans, sans-serif';
       ctx.fillText(formatCompactINR(val), x + barWidth / 2, y - 4);
     }
   });
