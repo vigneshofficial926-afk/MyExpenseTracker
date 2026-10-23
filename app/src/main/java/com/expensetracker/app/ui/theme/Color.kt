@@ -14,6 +14,11 @@ val MeshGradientMid1 = Color(0xFF065F46)
 val MeshGradientMid2 = Color(0xFF0D9488)
 val MeshGradientEnd = Color(0xFF0F766E)
 
+val MeshGradient1 = MeshGradientStart
+val MeshGradient2 = MeshGradientMid1
+val MeshGradient3 = MeshGradientMid2
+val MeshGradient4 = MeshGradientEnd
+
 val OceanSecondary = Color(0xFF06B6D4)
 
 val IncomeGreen = Color(0xFF10B981)
