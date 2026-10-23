@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,8 +44,10 @@ import com.expensetracker.app.ui.theme.ExpenseRed
 import com.expensetracker.app.ui.theme.ExpenseRedLight
 import com.expensetracker.app.ui.theme.IncomeGreen
 import com.expensetracker.app.ui.theme.IncomeGreenLight
-import com.expensetracker.app.ui.theme.TealDark
-import com.expensetracker.app.ui.theme.TealPrimary
+import com.expensetracker.app.ui.theme.MeshGradient1
+import com.expensetracker.app.ui.theme.MeshGradient2
+import com.expensetracker.app.ui.theme.MeshGradient3
+import com.expensetracker.app.ui.theme.MeshGradient4
 import com.expensetracker.app.util.CurrencyFormatter
 
 @Composable
@@ -62,14 +65,15 @@ fun BalanceCard(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        border = BorderStroke(1.dp, Color(0x3334D399)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
                     brush = Brush.linearGradient(
-                        colors = listOf(TealPrimary, TealDark)
+                        colors = listOf(MeshGradient1, MeshGradient2, MeshGradient3, MeshGradient4)
                     )
                 )
                 .padding(20.dp)
@@ -81,9 +85,10 @@ fun BalanceCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Total Balance",
+                        text = "Total Net Balance",
                         style = MaterialTheme.typography.titleMedium,
-                        color = Color.White.copy(alpha = 0.85f)
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontWeight = FontWeight.Medium
                     )
                     IconButton(
                         onClick = { isBalanceVisible = !isBalanceVisible },
@@ -104,36 +109,42 @@ fun BalanceCard(
                     text = if (isBalanceVisible) CurrencyFormatter.format(totalBalance) else "₹ ••••••",
                     style = MaterialTheme.typography.headlineLarge,
                     color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 32.sp
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 34.sp
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Income Summary
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Income Capsule
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(Color.Black.copy(alpha = 0.22f), RoundedCornerShape(14.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(32.dp)
                                 .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.2f)),
+                                .background(IncomeGreen.copy(alpha = 0.25f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.ArrowDownward,
                                 contentDescription = "Income",
                                 tint = Color(0xFF6EE7B7),
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
-                                text = "Month Income",
+                                text = "Income",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.White.copy(alpha = 0.75f)
                             )
@@ -141,31 +152,38 @@ fun BalanceCard(
                                 text = CurrencyFormatter.format(monthIncome),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Color.White,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
                             )
                         }
                     }
 
-                    // Expense Summary
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Expense Capsule
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(Color.Black.copy(alpha = 0.22f), RoundedCornerShape(14.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(32.dp)
                                 .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.2f)),
+                                .background(ExpenseRed.copy(alpha = 0.25f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.ArrowUpward,
-                                contentDescription = "Expenses",
+                                contentDescription = "Expense",
                                 tint = Color(0xFFFCA5A5),
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
-                                text = "Month Expenses",
+                                text = "Expense",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.White.copy(alpha = 0.75f)
                             )
@@ -173,7 +191,8 @@ fun BalanceCard(
                                 text = CurrencyFormatter.format(monthExpense),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Color.White,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
                             )
                         }
                     }
@@ -196,6 +215,7 @@ fun MiniMetricCard(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, Color(0x14FFFFFF)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(

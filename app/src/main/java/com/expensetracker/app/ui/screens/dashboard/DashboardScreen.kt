@@ -1,5 +1,6 @@
 package com.expensetracker.app.ui.screens.dashboard
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -164,6 +165,7 @@ fun DashboardScreen(
                             .weight(1f)
                             .height(48.dp),
                         shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.35f)),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = ExpenseRed.copy(alpha = 0.15f),
                             contentColor = ExpenseRed
@@ -187,6 +189,7 @@ fun DashboardScreen(
                             .weight(1f)
                             .height(48.dp),
                         shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, IncomeGreen.copy(alpha = 0.35f)),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = IncomeGreen.copy(alpha = 0.15f),
                             contentColor = IncomeGreen
@@ -240,6 +243,7 @@ fun DashboardScreen(
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, Color(0x14FFFFFF)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -279,6 +283,7 @@ fun DashboardScreen(
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, Color(0x14FFFFFF)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {

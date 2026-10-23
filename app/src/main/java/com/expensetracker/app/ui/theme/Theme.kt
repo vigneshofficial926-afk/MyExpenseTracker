@@ -7,14 +7,15 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = TealLight,
-    onPrimary = DarkBg,
-    primaryContainer = TealDark,
+    primary = EmeraldPrimary,
+    onPrimary = Color(0xFF030712),
+    primaryContainer = EmeraldDark,
     onPrimaryContainer = DarkTextPrimary,
     secondary = OceanSecondary,
     onSecondary = DarkTextPrimary,
@@ -28,10 +29,10 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = TealPrimary,
+    primary = EmeraldPrimary,
     onPrimary = LightSurface,
-    primaryContainer = TealLight.copy(alpha = 0.2f),
-    onPrimaryContainer = TealDark,
+    primaryContainer = EmeraldLight.copy(alpha = 0.2f),
+    onPrimaryContainer = EmeraldDark,
     secondary = OceanSecondary,
     onSecondary = LightSurface,
     background = LightBg,
