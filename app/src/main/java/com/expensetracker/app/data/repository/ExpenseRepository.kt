@@ -32,7 +32,6 @@ class ExpenseRepository(
 
     // --- Transactions ---
     val allTransactions: Flow<List<TransactionEntity>> = transactionDao.getAllTransactions()
-    suspend fun getAllTransactionsSync(): List<TransactionEntity> = transactionDao.getAllTransactionsList()
     fun getRecentTransactions(limit: Int = 10): Flow<List<TransactionEntity>> =
         transactionDao.getRecentTransactions(limit)
 

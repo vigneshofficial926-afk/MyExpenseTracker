@@ -55,6 +55,8 @@ abstract class ExpenseDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: ExpenseDatabase? = null
 
+        fun getInstance(context: Context): ExpenseDatabase = getDatabase(context)
+
         fun getDatabase(context: Context): ExpenseDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
