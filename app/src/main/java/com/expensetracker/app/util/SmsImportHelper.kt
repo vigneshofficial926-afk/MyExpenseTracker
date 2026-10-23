@@ -21,8 +21,8 @@ object SmsImportHelper {
             val categoryDao = database.categoryDao()
             val accountDao = database.accountDao()
 
-            val allCategories = categoryDao.getAllCategoriesSync()
-            val allAccounts = accountDao.getAllAccountsSync()
+            val allCategories = categoryDao.getAllCategoriesList()
+            val allAccounts = accountDao.getAllAccountsList()
             val existingRecent = transactionDao.getAllTransactionsList()
 
             val cutoffMillis = System.currentTimeMillis() - (lookbackDays * 86_400_000L)
@@ -126,8 +126,8 @@ object SmsImportHelper {
         val categoryDao = database.categoryDao()
         val accountDao = database.accountDao()
 
-        val allCategories = categoryDao.getAllCategoriesSync()
-        val allAccounts = accountDao.getAllAccountsSync()
+        val allCategories = categoryDao.getAllCategoriesList()
+        val allAccounts = accountDao.getAllAccountsList()
 
         val matchingCategory = allCategories.find {
             it.name.equals(parsed.suggestedCategory, ignoreCase = true) && it.type == parsed.type

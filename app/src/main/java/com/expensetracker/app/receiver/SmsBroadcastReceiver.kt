@@ -74,7 +74,7 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         }
 
         // 2. Resolve Category Entity
-        val allCategories = categoryDao.getAllCategoriesSync()
+        val allCategories = categoryDao.getAllCategoriesList()
         val matchingCategory = allCategories.find {
             it.name.equals(parsed.suggestedCategory, ignoreCase = true) && it.type == parsed.type
         } ?: allCategories.find {
@@ -82,7 +82,7 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         } ?: return
 
         // 3. Resolve Account Entity
-        val allAccounts = accountDao.getAllAccountsSync()
+        val allAccounts = accountDao.getAllAccountsList()
         val matchingAccount = if (parsed.bankName != null) {
             allAccounts.find { it.name.contains(parsed.bankName, ignoreCase = true) }
         } else null ?: allAccounts.firstOrNull()
