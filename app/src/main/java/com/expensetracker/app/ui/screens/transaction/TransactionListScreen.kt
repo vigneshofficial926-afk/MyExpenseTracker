@@ -93,7 +93,7 @@ fun TransactionListScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Transactions",
+                        text = "Transaction",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,

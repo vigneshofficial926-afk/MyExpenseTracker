@@ -12,20 +12,23 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface BudgetDao {
 
-    @Query("SELECT * FROM budgets WHERE monthYear = :monthYear")
+    @Query("SELECT * FROM budgets WHERE monthYear = :monthYear ORDER BY id DESC")
     fun getBudgetsForMonth(monthYear: String): Flow<List<BudgetEntity>>
 
-    @Query("SELECT * FROM budgets WHERE monthYear = :monthYear")
+    @Query("SELECT * FROM budgets WHERE monthYear = :monthYear ORDER BY id DESC")
     suspend fun getBudgetsForMonthSync(monthYear: String): List<BudgetEntity>
 
-    @Query("SELECT * FROM budgets WHERE monthYear = :monthYear AND categoryId IS NULL LIMIT 1")
+    @Query("SELECT * FROM budgets WHERE monthYear = :monthYear AND categoryId IS NULL ORDER BY id DESC LIMIT 1")
     fun getOverallBudget(monthYear: String): Flow<BudgetEntity?>
 
-    @Query("SELECT * FROM budgets WHERE monthYear = :monthYear AND categoryId IS NULL LIMIT 1")
+    @Query("SELECT * FROM budgets WHERE monthYear = :monthYear AND categoryId IS NULL ORDER BY id DESC LIMIT 1")
     suspend fun getOverallBudgetSync(monthYear: String): BudgetEntity?
 
-    @Query("SELECT * FROM budgets WHERE monthYear = :monthYear AND categoryId = :categoryId LIMIT 1")
+    @Query("SELECT * FROM budgets WHERE monthYear = :monthYear AND categoryId = :categoryId ORDER BY id DESC LIMIT 1")
     fun getCategoryBudget(monthYear: String, categoryId: Long): Flow<BudgetEntity?>
+
+    @Query("SELECT * FROM budgets WHERE monthYear = :monthYear AND categoryId = :categoryId ORDER BY id DESC LIMIT 1")
+    suspend fun getCategoryBudgetSync(monthYear: String, categoryId: Long): BudgetEntity?
 
     @Query("SELECT * FROM budgets ORDER BY monthYear DESC")
     fun getAllBudgets(): Flow<List<BudgetEntity>>

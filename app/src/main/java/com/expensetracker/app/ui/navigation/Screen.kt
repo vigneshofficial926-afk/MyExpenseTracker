@@ -29,7 +29,7 @@ sealed class Screen(
 
     data object Transactions : Screen(
         route = "transactions",
-        title = "Transactions",
+        title = "Transaction",
         selectedIcon = Icons.Filled.ReceiptLong,
         unselectedIcon = Icons.Outlined.ReceiptLong
     )

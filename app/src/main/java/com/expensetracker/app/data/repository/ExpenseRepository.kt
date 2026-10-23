@@ -107,8 +107,25 @@ class ExpenseRepository(
     fun getOverallBudget(monthYear: String): Flow<BudgetEntity?> =
         budgetDao.getOverallBudget(monthYear)
 
-    suspend fun setBudget(budget: BudgetEntity): Long =
-        withContext(Dispatchers.IO) { budgetDao.insertOrUpdateBudget(budget) }
+    suspend fun setBudget(budget: BudgetEntity): Long = withContext(Dispatchers.IO) {
+        if (budget.categoryId == null) {
+            val existing = budgetDao.getOverallBudgetSync(budget.monthYear)
+            if (existing != null) {
+                budgetDao.updateBudget(budget.copy(id = existing.id))
+                existing.id
+            } else {
+                budgetDao.insertOrUpdateBudget(budget)
+            }
+        } else {
+            val existing = budgetDao.getCategoryBudgetSync(budget.monthYear, budget.categoryId)
+            if (existing != null) {
+                budgetDao.updateBudget(budget.copy(id = existing.id))
+                existing.id
+            } else {
+                budgetDao.insertOrUpdateBudget(budget)
+            }
+        }
+    }
 
     suspend fun deleteBudget(budget: BudgetEntity) =
         withContext(Dispatchers.IO) { budgetDao.deleteBudget(budget) }

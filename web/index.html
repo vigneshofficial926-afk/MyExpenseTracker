@@ -83,7 +83,7 @@
       </button>
       <button class="nav-item" data-tab="transactions">
         <div class="nav-icon-wrap"><span class="material-symbols-rounded">receipt_long</span></div>
-        <span>Transactions</span>
+        <span>Transaction</span>
       </button>
       <button class="nav-item" data-tab="reports">
         <div class="nav-icon-wrap"><span class="material-symbols-rounded">bar_chart</span></div>
@@ -185,6 +185,44 @@
           <span class="material-symbols-rounded">check</span>
           Save Transaction
         </button>
+      </div>
+    </div>
+
+    <!-- Set / Edit Budget Modal Sheet -->
+    <div class="modal-overlay" id="budgetModal">
+      <div class="modal-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <h3 id="modalBudgetTitle">Set Monthly Budget</h3>
+          <button class="icon-btn" onclick="closeModal('budgetModal')">
+            <span class="material-symbols-rounded">close</span>
+          </button>
+        </div>
+
+        <p id="modalBudgetSubtitle" style="font-size:12px;color:var(--text-secondary);margin-bottom:16px;">
+          Set your overall monthly budget cap in Indian Rupee (₹).
+        </p>
+
+        <!-- Amount Input -->
+        <div class="form-group">
+          <label class="form-label" for="budgetAmountInput">Budget Limit Amount (₹)</label>
+          <input type="number" id="budgetAmountInput" class="input-field" placeholder="0.00" min="1" step="any" style="font-size:22px;font-weight:800;">
+        </div>
+
+        <div id="budgetErrorAlert" style="display:none;background:var(--expense-light);color:var(--expense);padding:10px 14px;border-radius:var(--radius-md);font-size:12px;margin-bottom:16px;font-weight:600;">
+          <!-- Error injected dynamically -->
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px;">
+          <button type="button" class="btn-primary" id="saveBudgetBtn" onclick="saveBudgetFromModal()">
+            <span class="material-symbols-rounded">check</span>
+            Save Budget
+          </button>
+          <button type="button" class="btn-secondary" onclick="closeModal('budgetModal')">
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
 

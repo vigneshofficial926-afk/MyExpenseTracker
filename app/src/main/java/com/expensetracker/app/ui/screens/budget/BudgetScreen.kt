@@ -39,9 +39,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,7 +75,37 @@ fun BudgetScreen(
     val overallBudget by viewModel.overallBudgetFlow.collectAsState()
     val categoryBudgets by viewModel.categoryBudgetsFlow.collectAsState()
 
+    val snackbarHostState = remember { SnackbarHostState() }
     var budgetInputText by remember { mutableStateOf("") }
+    var inputError by remember { mutableStateOf<String?>(null) }
+
+    // Listen for feedback messages
+    LaunchedEffect(viewModel) {
+        viewModel.feedbackMessage.collect { msg ->
+            snackbarHostState.showSnackbar(msg)
+        }
+    }
+
+    // Prefill budget input amount when dialog opens
+    LaunchedEffect(uiState.isSettingBudgetDialogOpen) {
+        if (uiState.isSettingBudgetDialogOpen) {
+            inputError = null
+            val initial = if (uiState.selectedCategoryForBudget == null) {
+                if (overallBudget > 0.0) {
+                    if (overallBudget % 1.0 == 0.0) overallBudget.toLong().toString() else overallBudget.toString()
+                } else ""
+            } else {
+                val catBudget = categoryBudgets.find { it.category.id == uiState.selectedCategoryForBudget?.id }?.budgetAmount ?: 0.0
+                if (catBudget > 0.0) {
+                    if (catBudget % 1.0 == 0.0) catBudget.toLong().toString() else catBudget.toString()
+                } else ""
+            }
+            budgetInputText = initial
+        } else {
+            budgetInputText = ""
+            inputError = null
+        }
+    }
 
     // Dialog to enter or edit budget
     if (uiState.isSettingBudgetDialogOpen) {
@@ -90,9 +123,16 @@ fun BudgetScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = budgetInputText,
-                        onValueChange = { if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) budgetInputText = it },
+                        onValueChange = { 
+                            if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
+                                budgetInputText = it
+                                inputError = null
+                            }
+                        },
                         label = { Text("Budget Amount") },
                         leadingIcon = { Text("₹", fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 12.dp)) },
+                        isError = inputError != null,
+                        supportingText = inputError?.let { { Text(it, color = ExpenseRed) } },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -103,9 +143,12 @@ fun BudgetScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val amount = budgetInputText.toDoubleOrNull() ?: 0.0
-                        viewModel.saveBudget(amount)
-                        budgetInputText = ""
+                        val amount = budgetInputText.toDoubleOrNull()
+                        if (amount == null || amount <= 0.0) {
+                            inputError = "Please enter a valid amount greater than ₹0"
+                        } else {
+                            viewModel.saveBudget(amount)
+                        }
                     }
                 ) {
                     Text("Save")
@@ -120,6 +163,7 @@ fun BudgetScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {

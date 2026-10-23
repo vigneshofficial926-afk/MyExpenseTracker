@@ -958,7 +958,7 @@ function switchTab(tab) {
   // 2. Instant Top Bar Title update
   const titleMap = {
     home: 'Vignesh Expense Tracker',
-    transactions: 'Transactions',
+    transactions: 'Transaction',
     reports: 'Reports & Analytics',
     budget: 'Monthly Budget',
     settings: 'Settings'
@@ -1174,6 +1174,90 @@ function deleteTransaction(txId) {
     showToast('Transaction deleted');
     renderApp();
   }
+}
+
+// 7b. Budget Modal Management
+let currentBudgetModalTarget = { categoryId: null, categoryName: null };
+
+function openBudgetModal(categoryId = null, currentLimit = 0, categoryName = null) {
+  currentBudgetModalTarget = { categoryId: categoryId || null, categoryName: categoryName || null };
+  const modal = document.getElementById('budgetModal');
+  const titleEl = document.getElementById('modalBudgetTitle');
+  const subtitleEl = document.getElementById('modalBudgetSubtitle');
+  const inputEl = document.getElementById('budgetAmountInput');
+  const errorEl = document.getElementById('budgetErrorAlert');
+
+  if (errorEl) {
+    errorEl.style.display = 'none';
+    errorEl.textContent = '';
+  }
+
+  if (categoryId && categoryName) {
+    if (titleEl) titleEl.textContent = `Set Budget: ${categoryName}`;
+    if (subtitleEl) subtitleEl.textContent = `Set the monthly spending limit for ${categoryName} in ₹:`;
+  } else {
+    if (titleEl) titleEl.textContent = 'Overall Monthly Budget';
+    if (subtitleEl) subtitleEl.textContent = 'Set your total monthly spending cap in Indian Rupee (₹):';
+  }
+
+  if (inputEl) {
+    inputEl.value = (currentLimit && currentLimit > 0) ? currentLimit : '';
+    setTimeout(() => {
+      inputEl.focus();
+      inputEl.select();
+    }, 50);
+  }
+
+  if (modal) {
+    modal.classList.add('active');
+  }
+}
+
+function saveBudgetFromModal() {
+  const inputEl = document.getElementById('budgetAmountInput');
+  const errorEl = document.getElementById('budgetErrorAlert');
+  const amountStr = inputEl ? inputEl.value.trim() : '';
+  const amount = parseFloat(amountStr);
+
+  if (isNaN(amount) || amount <= 0) {
+    if (errorEl) {
+      errorEl.textContent = 'Please enter a valid positive budget amount greater than ₹0.';
+      errorEl.style.display = 'block';
+    } else {
+      alert('Please enter a valid positive budget amount greater than ₹0.');
+    }
+    return;
+  }
+
+  // Format monthYear as MM-YYYY (e.g. 10-2026) for the current active month
+  const now = new Date();
+  const currentMonthKey = `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+  const budgets = db.get(STORAGE_KEYS.BUDGETS, []);
+  const targetCatId = currentBudgetModalTarget.categoryId;
+
+  // Find existing budget record for this month and category/overall
+  const existingIndex = budgets.findIndex(b => 
+    b.monthYear === currentMonthKey && 
+    (targetCatId ? b.categoryId === targetCatId : !b.categoryId)
+  );
+
+  if (existingIndex !== -1) {
+    budgets[existingIndex].budgetAmount = amount;
+  } else {
+    budgets.push({
+      id: Date.now() + Math.floor(Math.random() * 1000),
+      monthYear: currentMonthKey,
+      categoryId: targetCatId,
+      budgetAmount: amount,
+      alertThresholdPercent: 80
+    });
+  }
+
+  db.set(STORAGE_KEYS.BUDGETS, budgets);
+  closeModal('budgetModal');
+  showToast(targetCatId ? 'Category budget updated' : 'Overall monthly budget updated');
+  markAllTabsDirty();
+  renderApp();
 }
 
 // 8. Canvas Charts
