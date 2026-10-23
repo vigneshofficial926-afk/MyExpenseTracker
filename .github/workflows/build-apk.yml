@@ -91,6 +91,33 @@ jobs:
             app/build/reports/
           retention-days: 7
 
+      - name: Prepare Build Summary
+        if: always()
+        run: |
+          echo "### Build Run #${{ github.run_number }} Summary" > build_summary.md
+          echo "Status: ${{ job.status }}" >> build_summary.md
+          echo "" >> build_summary.md
+          echo "#### Errors & Warnings:" >> build_summary.md
+          echo '```' >> build_summary.md
+          grep -E "(^e: |error:|FAILED|Exception)" build_output.txt | head -50 >> build_summary.md || true
+          echo '```' >> build_summary.md
+          echo "#### Last 50 lines:" >> build_summary.md
+          echo '```' >> build_summary.md
+          tail -50 build_output.txt >> build_summary.md || true
+          echo '```' >> build_summary.md
+
+      - name: Create Failure Release with Log
+        if: steps.check_apk.outputs.APK_EXISTS != 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "failure-${{ github.run_number }}"
+          name: "Build Failure Diagnostics #${{ github.run_number }}"
+          body_path: build_summary.md
+          files: build_output.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
       - name: Fail if APK not built
         if: steps.check_apk.outputs.APK_EXISTS != 'true'
         run: exit 1
