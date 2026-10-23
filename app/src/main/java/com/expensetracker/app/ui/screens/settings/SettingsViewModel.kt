@@ -31,6 +31,10 @@ data class SettingsUiState(
     val isSettingPinDialogOpen: Boolean = false,
     val isClearDataConfirmationOpen: Boolean = false,
     val isClearDataFinalConfirmationOpen: Boolean = false,
+    val isSmsTrackingEnabled: Boolean = false,
+    val isSmsConsentDialogOpen: Boolean = false,
+    val isSmsTestDialogOpen: Boolean = false,
+    val isScanningSms: Boolean = false,
     val operationMessage: String? = null
 )
 
@@ -48,7 +52,8 @@ class SettingsViewModel(
             firstDayOfWeek = DayOfWeek.valueOf(prefs.getString("first_day_of_week", DayOfWeek.MONDAY.name) ?: DayOfWeek.MONDAY.name),
             isPinLockEnabled = prefs.getBoolean("pin_lock_enabled", false),
             isBiometricEnabled = prefs.getBoolean("biometric_enabled", false),
-            userPin = prefs.getString("user_pin", "") ?: ""
+            userPin = prefs.getString("user_pin", "") ?: "",
+            isSmsTrackingEnabled = prefs.getBoolean("sms_tracking_enabled", false)
         )
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -152,6 +157,58 @@ class SettingsViewModel(
             } catch (e: Exception) {
                 closeClearDataConfirmation()
                 _uiState.value = _uiState.value.copy(operationMessage = "Failed to clear data: ${e.message}")
+            }
+        }
+    }
+
+    // --- Automatic Bank SMS Tracking ---
+    fun openSmsConsentDialog() {
+        _uiState.value = _uiState.value.copy(isSmsConsentDialogOpen = true)
+    }
+
+    fun closeSmsConsentDialog() {
+        _uiState.value = _uiState.value.copy(isSmsConsentDialogOpen = false)
+    }
+
+    fun openSmsTestDialog() {
+        _uiState.value = _uiState.value.copy(isSmsTestDialogOpen = true)
+    }
+
+    fun closeSmsTestDialog() {
+        _uiState.value = _uiState.value.copy(isSmsTestDialogOpen = false)
+    }
+
+    fun setSmsTrackingEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("sms_tracking_enabled", enabled).apply()
+        _uiState.value = _uiState.value.copy(isSmsTrackingEnabled = enabled)
+    }
+
+    fun scanSmsInbox(onComplete: (Int) -> Unit) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isScanningSms = true)
+            val result = com.expensetracker.app.util.SmsImportHelper.importFromSmsInbox(context, lookbackDays = 30)
+            _uiState.value = _uiState.value.copy(isScanningSms = false)
+            val count = result.getOrDefault(0)
+            _uiState.value = _uiState.value.copy(
+                operationMessage = if (result.isSuccess) "Imported $count bank transaction(s) from SMS."
+                else "Failed to scan SMS: ${result.exceptionOrNull()?.message}"
+            )
+            onComplete(count)
+        }
+    }
+
+    fun importSingleSms(rawText: String, onComplete: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val result = com.expensetracker.app.util.SmsImportHelper.importSingleSmsText(context, rawText)
+            if (result.isSuccess) {
+                val tx = result.getOrNull()!!
+                _uiState.value = _uiState.value.copy(
+                    operationMessage = "Transaction of ₹${String.format("%.2f", tx.amount)} successfully recorded."
+                )
+                onComplete(true, "Transaction of ₹${String.format("%.2f", tx.amount)} recorded successfully!")
+            } else {
+                val msg = result.exceptionOrNull()?.message ?: "Failed to parse SMS."
+                onComplete(false, msg)
             }
         }
     }

@@ -27,17 +27,62 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.expensetracker.app.ui.components.ConfirmationDialog
+import com.expensetracker.app.ui.theme.ExpenseRed
+import com.expensetracker.app.ui.theme.IncomeGreen
+import com.expensetracker.app.util.CurrencyFormatter
+import com.expensetracker.app.util.SmsTransactionParser
+import kotlinx.coroutines.launch
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -75,9 +120,168 @@ fun SettingsScreen(
     onNavigateToRecurring: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     var pinInput by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf<String?>(null) }
+    var testSmsInput by remember { mutableStateOf("") }
+
+    // Launcher for SMS permissions with rationale
+    val smsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val receiveGranted = permissions[Manifest.permission.RECEIVE_SMS] == true
+        val readGranted = permissions[Manifest.permission.READ_SMS] == true
+        if (receiveGranted || readGranted) {
+            viewModel.setSmsTrackingEnabled(true)
+            scope.launch { snackbarHostState.showSnackbar("Bank SMS auto-tracking enabled successfully!") }
+        } else {
+            viewModel.setSmsTrackingEnabled(false)
+            scope.launch { snackbarHostState.showSnackbar("SMS permission was not granted. Tracking disabled.") }
+        }
+    }
+
+    // Privacy & Consent Dialog for SMS Tracking
+    if (uiState.isSmsConsentDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { viewModel.closeSmsConsentDialog() },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Sms,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Automatic SMS Tracking Consent",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Enable automated expense & income logging directly from bank transaction alerts.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "• 100% On-Device: All processing is offline. No SMS or financial data ever leaves your device.\n" +
+                                "• Strict Privacy: We ignore OTPs, verification codes, personal chats, and spam offers.\n" +
+                                "• Full Control: You can turn this off anytime and edit or delete any imported transactions.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.closeSmsConsentDialog()
+                        smsPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.RECEIVE_SMS,
+                                Manifest.permission.READ_SMS
+                            )
+                        )
+                    }
+                ) {
+                    Text("Agree & Allow")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.closeSmsConsentDialog() }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Test / Paste SMS Dialog
+    if (uiState.isSmsTestDialogOpen) {
+        val parsedPreview = remember(testSmsInput) {
+            if (testSmsInput.isNotBlank()) SmsTransactionParser.parse("BANK-SMS", testSmsInput) else null
+        }
+
+        AlertDialog(
+            onDismissRequest = { viewModel.closeSmsTestDialog() },
+            title = { Text("Paste & Test Bank SMS", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Paste a transaction SMS from HDFC, SBI, ICICI, Axis, or UPI to test:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = testSmsInput,
+                        onValueChange = { testSmsInput = it },
+                        placeholder = { Text("e.g. Rs.450 debited from A/c **1234 to VPA swiggy@icici via UPI Ref 123456") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(110.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (parsedPreview != null) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    text = "Extracted Details:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text("Amount: ${CurrencyFormatter.format(parsedPreview.amount)} (${parsedPreview.type.displayName})", style = MaterialTheme.typography.bodySmall)
+                                Text("Merchant: ${parsedPreview.merchantOrSender}", style = MaterialTheme.typography.bodySmall)
+                                Text("Category: ${parsedPreview.suggestedCategory}", style = MaterialTheme.typography.bodySmall)
+                                Text("Method: ${parsedPreview.paymentMethod.displayName}", style = MaterialTheme.typography.bodySmall)
+                                if (parsedPreview.referenceNumber != null) {
+                                    Text("Ref No: ${parsedPreview.referenceNumber}", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    } else if (testSmsInput.isNotBlank()) {
+                        Text(
+                            text = "No valid financial transaction detected. OTPs and promotions are automatically ignored.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = ExpenseRed
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = parsedPreview != null,
+                    onClick = {
+                        viewModel.importSingleSms(testSmsInput) { success, msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                            if (success) {
+                                testSmsInput = ""
+                                viewModel.closeSmsTestDialog()
+                            }
+                        }
+                    }
+                ) {
+                    Text("Import Transaction")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.closeSmsTestDialog() }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 
     // PIN Setup Dialog
     if (uiState.isSettingPinDialogOpen) {
@@ -155,6 +359,7 @@ fun SettingsScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("App Settings", fontWeight = FontWeight.Bold) },
@@ -296,6 +501,117 @@ fun SettingsScreen(
                                     onClick = { viewModel.setFirstDayOfWeek(day) },
                                     label = { Text(day.name.lowercase().replaceFirstChar { it.uppercase() }) }
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Automatic Transaction Tracking from Bank SMS
+            item {
+                Text(
+                    text = "Automatic Tracking",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp)
+                )
+            }
+
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Sms,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Auto-Track from Bank SMS",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = if (uiState.isSmsTrackingEnabled) "Active · Logging bank & UPI alerts" else "Disabled · Tap to enable",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (uiState.isSmsTrackingEnabled) IncomeGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Switch(
+                                checked = uiState.isSmsTrackingEnabled,
+                                onCheckedChange = { enable ->
+                                    if (enable) {
+                                        viewModel.openSmsConsentDialog()
+                                    } else {
+                                        viewModel.setSmsTrackingEnabled(false)
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.primary)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Action buttons: Scan Inbox & Test SMS
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    viewModel.scanSmsInbox { count ->
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Scanned SMS Inbox: $count new transaction(s) recorded.")
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                enabled = !uiState.isScanningSms
+                            ) {
+                                if (uiState.isScanningSms) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(imageVector = Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Scan Inbox", fontSize = 12.sp)
+                            }
+
+                            OutlinedButton(
+                                onClick = { viewModel.openSmsTestDialog() },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Paste SMS", fontSize = 12.sp)
                             }
                         }
                     }

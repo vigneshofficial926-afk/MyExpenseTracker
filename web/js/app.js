@@ -815,6 +815,40 @@ function renderSettings(container) {
       </div>
     </div>
 
+    <!-- Automatic SMS Tracking & Web SMS Parser -->
+    <div class="section-label" style="margin-top:16px;">Bank SMS & UPI Tracking</div>
+    <div class="card" style="margin-bottom:8px;">
+      <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
+        <div style="width:36px;height:36px;border-radius:10px;background:var(--primary-container);color:var(--primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <span class="material-symbols-rounded">sms</span>
+        </div>
+        <div>
+          <div style="font-size:14px;font-weight:700;">Bank SMS & UPI Parser</div>
+          <div style="font-size:11px;color:var(--text-secondary);line-height:1.4;margin-top:2px;">
+            <strong>Android Native App:</strong> Auto-tracks incoming bank alerts via background broadcast listener.<br>
+            <strong>Web App:</strong> Paste any bank SMS or notification alert below to parse and record it instantly.
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick sample test buttons -->
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+        <button type="button" class="chip-btn" style="font-size:10px;padding:4px 8px;" onclick="fillSampleSms('debit')">Sample UPI Debit</button>
+        <button type="button" class="chip-btn" style="font-size:10px;padding:4px 8px;" onclick="fillSampleSms('salary')">Sample Salary</button>
+        <button type="button" class="chip-btn" style="font-size:10px;padding:4px 8px;" onclick="fillSampleSms('refund')">Sample Refund</button>
+        <button type="button" class="chip-btn" style="font-size:10px;padding:4px 8px;" onclick="fillSampleSms('otp')">Test OTP (Spam filter)</button>
+      </div>
+
+      <textarea id="webSmsInput" class="input-field" style="height:76px;padding:8px 10px;font-size:12px;resize:none;margin-bottom:8px;" placeholder="Paste bank SMS or UPI alert text here..."></textarea>
+
+      <div id="webSmsResultBox" style="display:none;margin-bottom:10px;"></div>
+
+      <button type="button" class="btn-primary" style="height:38px;font-size:13px;margin-top:0;" onclick="parseAndRecordSmsInWeb()">
+        <span class="material-symbols-rounded" style="font-size:16px;">auto_awesome</span>
+        <span>Parse & Record Transaction</span>
+      </button>
+    </div>
+
     <!-- Data Backup & Export -->
     <div class="section-label" style="margin-top:16px;">Backup & Export</div>
     <div class="card" style="margin-bottom:8px;cursor:pointer;" onclick="exportCsv()">
@@ -1256,6 +1290,175 @@ function saveBudgetFromModal() {
   db.set(STORAGE_KEYS.BUDGETS, budgets);
   closeModal('budgetModal');
   showToast(targetCatId ? 'Category budget updated' : 'Overall monthly budget updated');
+  markAllTabsDirty();
+  renderApp();
+}
+
+// 7c. Web Bank SMS & Notification Parser
+const WebSmsParser = {
+  OTP_REGEX: /\b(otp|one[ -]time[ -]password|verification[ -]code|security[ -]code|secret[ -]code|do not share|valid for|is your code|login code)\b/i,
+  PROMO_REGEX: /\b(pre-approved|apply now|cashback offer|cashback points|discount coupon|flat discount|congratulations|congrats|win up to|loan up to|voucher code|use code|avail now)\b/i,
+  ACTION_REGEX: /\b(debited|spent|paid|withdrawn|transferred|sent|charged|credited|received|deposited|refunded|reversed)\b/i,
+
+  parse(text) {
+    const clean = (text || '').trim();
+    if (clean.length < 15) return { error: 'Text is too short to be a transaction alert.' };
+    if (this.OTP_REGEX.test(clean)) return { error: 'Security Warning: This is an OTP or verification code. OTPs are ignored to safeguard your accounts.' };
+    if (this.PROMO_REGEX.test(clean)) return { error: 'This is a promotional spam or loan offer, not a transaction alert.' };
+    if (!this.ACTION_REGEX.test(clean)) return { error: 'No financial transaction movement (debited, credited, spent, etc.) detected.' };
+
+    const lower = clean.toLowerCase();
+    const hasDebit = /debited|spent|paid|withdrawn|charged|sent/.test(lower);
+    const hasCredit = /credited|received|deposited/.test(lower);
+    const hasRefund = /refund|reversed|reversal/.test(lower);
+    const isTransferOwn = /transferred to your own|transfer to own a\/c|transfer to self|self account transfer/i.test(lower);
+    const isCcBill = /credit card bill payment|payment received for credit card|credit card payment received/i.test(lower);
+
+    // Amount extraction
+    let amount = null;
+    const m1 = /(?:rs\.?|inr|₹|inr\.)\s*([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)/i.exec(clean);
+    if (m1) {
+      amount = parseFloat(m1[1].replace(/,/g, ''));
+    } else {
+      const m2 = /([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\s*(?:rs\.?|inr|₹)/i.exec(clean);
+      if (m2) amount = parseFloat(m2[1].replace(/,/g, ''));
+    }
+    if (!amount || amount <= 0) return { error: 'Could not extract a valid transaction amount from the text.' };
+
+    let type = 'EXPENSE';
+    if (isTransferOwn) type = 'TRANSFER';
+    else if (hasRefund) type = 'REFUND';
+    else if (hasCredit && !hasDebit) type = 'INCOME';
+    else type = 'EXPENSE';
+
+    let accountOrCard = null;
+    const acctMatch = /(?:a\/c|acct|account|card|ending with|ending)\s*(?:no\.?)?\s*[*xX.-]*([0-9]{3,4})/i.exec(clean);
+    if (acctMatch) {
+      accountOrCard = lower.includes('card') && !lower.includes('a/c') ? `Card **${acctMatch[1]}` : `A/c **${acctMatch[1]}`;
+    }
+
+    let refNo = null;
+    const refMatch = /(?:upi ref|ref no|ref|utr|txn id|txn#|txn|imps ref|reference)[:\s-]*([a-zA-Z0-9]{6,22})/i.exec(clean);
+    if (refMatch) refNo = refMatch[1].trim();
+
+    let paymentMethod = 'UPI';
+    if (/upi|@|vpa|googlepay|phonepe|paytm/i.test(lower)) paymentMethod = 'UPI';
+    else if (/credit card|cc ending/i.test(lower)) paymentMethod = 'Credit Card';
+    else if (/debit card|dc ending/i.test(lower)) paymentMethod = 'Debit Card';
+    else if (/neft|rtgs|imps|net banking|bank transfer/i.test(lower)) paymentMethod = 'Bank Transfer';
+
+    let merchant = type === 'INCOME' ? 'Bank Credit' : 'Bank Expense';
+    const vpaMatch = /\b(?:to\s+(?:vpa\s+)?|vpa\s+)([a-zA-Z0-9._-]+@[a-zA-Z0-9]+)/i.exec(clean);
+    if (vpaMatch) {
+      merchant = vpaMatch[1].split('@')[0].replace(/[.-]/g, ' ');
+    } else {
+      const toMatch = /\b(?:to|paid to|sent to|at|info:\s*upi\/p2[ap]\/)\s*([a-zA-Z0-9&.,' -]{2,30}?)(?:\s+on|\s+dated|\s+ref|\s+utr|\s+avl|\s+bal|\.|,|$)/i.exec(clean);
+      if (toMatch) {
+        const c = toMatch[1].replace(/^(?:vpa|upi\/)\s*/i, '').trim();
+        if (c.length > 2 && !/your a\/c|bank|account|vpa|upi|balance/i.test(c)) merchant = c;
+      }
+    }
+
+    let category = type === 'INCOME' ? 'Other Income' : 'Other Expenses';
+    if (isCcBill) category = 'EMI and Loan Payments';
+    else if (lower.includes('salary') || lower.includes('payroll')) category = 'Salary';
+    else if (/swiggy|zomato|blinkit|zepto|bigbasket|grocer|supermarket|dmart/i.test(lower)) category = 'Food and Groceries';
+    else if (/kfc|mcdonald|starbucks|dominos|pizza|restaurant|cafe/i.test(lower)) category = 'Hotel and Restaurants';
+    else if (/chai|tea|coffee|bakery|snacks/i.test(lower)) category = 'Tea, Coffee and Snacks';
+    else if (/uber|ola|rapido|petrol|fuel|diesel|fastag|metro|irctc/i.test(lower)) category = 'Transportation and Fuel';
+    else if (/amazon|flipkart|myntra|ajio|zara|shopping/i.test(lower)) category = 'Shopping';
+    else if (/netflix|spotify|prime|hotstar|bookmyshow|cinema|movie/i.test(lower)) category = 'Entertainment';
+    else if (/apollo|pharmacy|hospital|medplus|medical/i.test(lower)) category = 'Health and Medical';
+    else if (/electricity|bescom|airtel|jio|broadband|recharge/i.test(lower)) category = 'Electricity and Utilities';
+
+    return {
+      success: true,
+      amount,
+      type,
+      category,
+      paymentMethod,
+      merchant: merchant.charAt(0).toUpperCase() + merchant.slice(1),
+      accountOrCard,
+      refNo,
+      isCcBill
+    };
+  }
+};
+
+function fillSampleSms(kind) {
+  const input = document.getElementById('webSmsInput');
+  if (!input) return;
+  if (kind === 'debit') {
+    input.value = "Rs.450.00 debited from A/c **4321 on 23-Oct-26 to VPA swiggy@icici via UPI. UPI Ref 429712345678. Avl Bal Rs.32450.00 - HDFC Bank";
+  } else if (kind === 'salary') {
+    input.value = "Your A/c ending 9876 has been credited by Rs. 75,000.00 on 01-OCT-26 by Salary transfer from TECH CORP PVT LTD. Ref: SAL20261001. Avl Bal: INR 95,400 - SBI";
+  } else if (kind === 'refund') {
+    input.value = "Refund of Rs. 1,299.00 has been credited to your HDFC Bank A/c **4321 towards cancelled order from Amazon India. Ref no 58392019.";
+  } else if (kind === 'otp') {
+    input.value = "492103 is your secret OTP for transaction of Rs. 2,450.00 on your HDFC Bank Card ending 1234. Valid for 10 minutes. Do not share with anyone.";
+  }
+}
+
+function parseAndRecordSmsInWeb() {
+  const input = document.getElementById('webSmsInput');
+  const box = document.getElementById('webSmsResultBox');
+  if (!input || !box) return;
+
+  const result = WebSmsParser.parse(input.value);
+
+  if (result.error) {
+    box.style.display = 'block';
+    box.innerHTML = `
+      <div style="background:var(--expense-light);color:var(--expense);padding:10px 12px;border-radius:var(--radius-md);font-size:12px;font-weight:600;">
+        ${result.error}
+      </div>
+    `;
+    return;
+  }
+
+  // Record transaction into db
+  const transactions = db.get(STORAGE_KEYS.TRANSACTIONS, []);
+  
+  // Duplicate check
+  const isDuplicate = transactions.some(t => 
+    (result.refNo && (t.tags || '').includes(result.refNo)) ||
+    (t.amount === result.amount && t.type === result.type && Math.abs(t.dateTime - Date.now()) < 300000)
+  );
+
+  if (isDuplicate) {
+    box.style.display = 'block';
+    box.innerHTML = `
+      <div style="background:var(--warning-light);color:var(--warning);padding:10px 12px;border-radius:var(--radius-md);font-size:12px;font-weight:600;">
+        Duplicate Detected: This transaction or UTR (${result.refNo || 'Ref'}) has already been recorded!
+      </div>
+    `;
+    return;
+  }
+
+  const newTx = {
+    id: Date.now() + Math.random(),
+    amount: result.amount,
+    type: result.type,
+    categoryName: result.category,
+    paymentMethod: result.paymentMethod,
+    description: `${result.merchant}${result.accountOrCard ? ` (${result.accountOrCard})` : ''}`,
+    tags: `sms-import${result.refNo ? `, ref:${result.refNo}` : ''}`,
+    dateTime: Date.now(),
+    isCreditCardBillPayment: result.isCcBill
+  };
+
+  transactions.unshift(newTx);
+  db.set(STORAGE_KEYS.TRANSACTIONS, transactions);
+
+  box.style.display = 'block';
+  box.innerHTML = `
+    <div style="background:var(--primary-container);color:var(--primary);padding:10px 12px;border-radius:var(--radius-md);font-size:12px;font-weight:600;">
+      ✓ Successfully recorded ${formatINR(result.amount)} (${result.type}) under "${result.category}" via ${result.paymentMethod}!
+    </div>
+  `;
+
+  input.value = '';
+  showToast(`Recorded ${formatINR(result.amount)} from SMS!`);
   markAllTabsDirty();
   renderApp();
 }
