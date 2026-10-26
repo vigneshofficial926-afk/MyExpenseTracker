@@ -121,11 +121,15 @@ object SmsTransactionParser {
         val isTransferOwn = detectTransferOwnAccounts(lower)
         val isCcBill = detectCreditCardBillPayment(lower)
 
+        val strongDebit = Regex("\\b(debited|withdrawn|spent|charged)\\b").containsMatchIn(lower)
+        val strongCredit = Regex("\\b(credited|deposited)\\b").containsMatchIn(lower)
         val type: TransactionType = when {
             isTransferOwn -> TransactionType.TRANSFER
+            isCcBill -> TransactionType.EXPENSE            // settlement: excluded from totals, never income
             hasRefund -> TransactionType.REFUND
+            strongCredit && !strongDebit -> TransactionType.INCOME
+            strongDebit -> TransactionType.EXPENSE
             hasCredit && !hasDebit -> TransactionType.INCOME
-            hasDebit -> TransactionType.EXPENSE
             else -> TransactionType.EXPENSE
         }
 
@@ -220,12 +224,10 @@ object SmsTransactionParser {
                 lower.contains("internal transfer"))
     }
 
-    private fun detectCreditCardBillPayment(lower: String): Boolean {
-        return (lower.contains("credit card bill payment") ||
-                lower.contains("payment received for credit card") ||
-                lower.contains("credit card payment received") ||
-                (lower.contains("credit card") && lower.contains("bill") && lower.contains("paid")))
-    }
+    private fun detectCreditCardBillPayment(lower: String): Boolean =
+        lower.contains("credit card") && (
+            lower.contains("payment received") || lower.contains("bill payment") ||
+            lower.contains("bill paid") || lower.contains("thank you for your payment"))
 
     private fun detectPaymentMethod(lower: String): PaymentMethod {
         return when {
@@ -312,7 +314,7 @@ object SmsTransactionParser {
         if (isCcBill) return "EMI and Loan Payments"
         if (isTransferOwn) return "Other Expenses"
 
-        if (type == TransactionType.INCOME || type == TransactionType.REFUND) {
+        if (type == TransactionType.INCOME) {          // was: INCOME || REFUND
             return when {
                 lower.contains("salary") || lower.contains("payroll") || lower.contains("stipend") -> "Salary"
                 lower.contains("interest") || lower.contains("dividend") -> "Interest"

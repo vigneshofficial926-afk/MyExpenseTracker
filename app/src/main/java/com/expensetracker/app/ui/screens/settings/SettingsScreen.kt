@@ -28,12 +28,15 @@ import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import android.Manifest
+import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Sms
@@ -60,6 +63,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -90,28 +94,44 @@ import java.time.DayOfWeek
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateToCategories: () -> Unit,
-    onNavigateToRecurring: () -> Unit
+    onNavigateToRecurring: () -> Unit,
+    onNavigateToGoals: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
+    LaunchedEffect(uiState.operationMessage) {
+        uiState.operationMessage?.let { snackbarHostState.showSnackbar(it); viewModel.consumeMessage() }
+    }
+
     var pinInput by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf<String?>(null) }
     var testSmsInput by remember { mutableStateOf("") }
 
+    var pendingRestore by remember { mutableStateOf<Uri?>(null) }
+    val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { pendingRestore = it }
+    pendingRestore?.let { uri ->
+        ConfirmationDialog(
+            title = "Restore backup?", message = "This replaces ALL current data with the backup file.",
+            confirmButtonText = "Restore", onConfirm = { viewModel.restoreBackup(uri); pendingRestore = null },
+            onDismiss = { pendingRestore = null }
+        )
+    }
+
     // Launcher for SMS permissions with rationale
-    val smsPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val receiveGranted = permissions[Manifest.permission.RECEIVE_SMS] == true
-        val readGranted = permissions[Manifest.permission.READ_SMS] == true
-        if (receiveGranted || readGranted) {
-            viewModel.setSmsTrackingEnabled(true)
-            scope.launch { snackbarHostState.showSnackbar("Bank SMS auto-tracking enabled successfully!") }
-        } else {
-            viewModel.setSmsTrackingEnabled(false)
-            scope.launch { snackbarHostState.showSnackbar("SMS permission was not granted. Tracking disabled.") }
+    val smsPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { p ->
+        val recv = p[Manifest.permission.RECEIVE_SMS] == true
+        val read = p[Manifest.permission.READ_SMS] == true
+        viewModel.setSmsTrackingEnabled(recv)
+        scope.launch {
+            snackbarHostState.showSnackbar(
+                when {
+                    recv && read -> "Bank SMS auto-tracking enabled!"
+                    recv -> "Live tracking on. Allow 'Read SMS' to scan old messages."
+                    else -> "SMS permission not granted. Tracking disabled."
+                }
+            )
         }
     }
 
@@ -154,12 +174,11 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         viewModel.closeSmsConsentDialog()
-                        smsPermissionLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.RECEIVE_SMS,
-                                Manifest.permission.READ_SMS
-                            )
-                        )
+                        val perms = buildList {
+                            add(Manifest.permission.RECEIVE_SMS); add(Manifest.permission.READ_SMS)
+                            if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+                        }.toTypedArray()
+                        smsPermissionLauncher.launch(perms)
                     }
                 ) {
                     Text("Agree & Allow")
@@ -346,7 +365,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 90.dp)
+            contentPadding = PaddingValues(bottom = 16.dp)
         ) {
             // Privacy & Offline Notice Card
             item {
@@ -413,6 +432,15 @@ fun SettingsScreen(
                     subtitle = "Automate regular EMIs, subscriptions, and rent",
                     icon = Icons.Default.EventRepeat,
                     onClick = onNavigateToRecurring
+                )
+            }
+
+            item {
+                SettingsActionCard(
+                    title = "Savings Goals",
+                    subtitle = "Track targets and monthly savings needed",
+                    icon = Icons.Default.Savings,
+                    onClick = onNavigateToGoals
                 )
             }
 
@@ -674,6 +702,7 @@ fun SettingsScreen(
                         }
                         Switch(
                             checked = uiState.isBiometricEnabled,
+                            enabled = uiState.isPinLockEnabled,
                             onCheckedChange = { viewModel.toggleBiometric(it) },
                             colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.primary)
                         )
@@ -715,6 +744,15 @@ fun SettingsScreen(
                     subtitle = "Export complete local database backup",
                     icon = Icons.Default.Share,
                     onClick = { viewModel.exportDatabaseBackup() }
+                )
+            }
+
+            item {
+                SettingsActionCard(
+                    title = "Restore from Backup (JSON)",
+                    subtitle = "Replace all data from a backup file",
+                    icon = Icons.Default.Download,
+                    onClick = { restoreLauncher.launch(arrayOf("application/json", "text/*", "*/*")) }
                 )
             }
 

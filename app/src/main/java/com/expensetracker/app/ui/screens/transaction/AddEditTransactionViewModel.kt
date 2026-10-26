@@ -21,6 +21,8 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
+import kotlinx.coroutines.flow.update
+
 data class AddEditTransactionUiState(
     val transactionId: Long? = null,
     val isEditing: Boolean = false,
@@ -47,180 +49,118 @@ class AddEditTransactionViewModel(
     private val initialType: TransactionType? = null
 ) : ViewModel() {
 
+    private val isEditMode = initialTransactionId != null && initialTransactionId > 0
     private val _uiState = MutableStateFlow(
         AddEditTransactionUiState(
             transactionId = initialTransactionId,
-            isEditing = initialTransactionId != null && initialTransactionId > 0,
+            isEditing = isEditMode,
             type = initialType ?: TransactionType.EXPENSE
         )
     )
     val uiState: StateFlow<AddEditTransactionUiState> = _uiState.asStateFlow()
 
+    private var allCategories: List<CategoryEntity> = emptyList()
+    private var original: TransactionEntity? = null
+
     init {
-        // Load categories reactively
         viewModelScope.launch {
-            repository.allCategories.collect { categories ->
-                val filtered = categories.filter { it.type == _uiState.value.type }
-                _uiState.value = _uiState.value.copy(
-                    availableCategories = filtered,
-                    selectedCategory = _uiState.value.selectedCategory ?: filtered.firstOrNull()
+            repository.allCategories.collect { cats ->
+                allCategories = cats
+                _uiState.update { s ->
+                    val filtered = cats.filter { it.type == s.type.categoryGroup }
+                    s.copy(
+                        availableCategories = filtered,
+                        selectedCategory = filtered.firstOrNull { it.id == s.selectedCategory?.id }
+                            ?: filtered.firstOrNull()
+                    )
+                }
+            }
+        }
+        if (isEditMode) viewModelScope.launch {
+            val tx = repository.getTransactionById(initialTransactionId!!).firstOrNull() ?: return@launch
+            original = tx
+            val cat = repository.getAllCategoriesSync().firstOrNull { it.id == tx.categoryId }
+            _uiState.update { s ->
+                s.copy(
+                    transactionId = tx.id, isEditing = true,
+                    amount = if (tx.amount % 1.0 == 0.0) tx.amount.toLong().toString() else tx.amount.toString(),
+                    type = tx.type,
+                    availableCategories = allCategories.filter { it.type == tx.type.categoryGroup },
+                    selectedCategory = cat ?: s.selectedCategory,
+                    dateTimeMillis = tx.dateTime, paymentMethod = tx.paymentMethod,
+                    description = tx.description, tags = tx.tags,
+                    isCreditCardBillPayment = tx.isCreditCardBillPayment
                 )
             }
         }
-
-        // If editing, load existing transaction
-        if (initialTransactionId != null && initialTransactionId > 0) {
-            viewModelScope.launch {
-                val existing = repository.getTransactionById(initialTransactionId).firstOrNull()
-                if (existing != null) {
-                    val allCats = repository.getAllCategoriesSync()
-                    val matchingCategory = allCats.find { it.id == existing.categoryId }
-                    _uiState.value = _uiState.value.copy(
-                        transactionId = existing.id,
-                        isEditing = true,
-                        amount = if (existing.amount % 1.0 == 0.0) existing.amount.toLong().toString() else existing.amount.toString(),
-                        type = existing.type,
-                        selectedCategory = matchingCategory,
-                        dateTimeMillis = existing.dateTime,
-                        paymentMethod = existing.paymentMethod,
-                        description = existing.description,
-                        tags = existing.tags,
-                        isCreditCardBillPayment = existing.isCreditCardBillPayment
-                    )
-                }
-            }
-        }
     }
 
-    fun onTypeChanged(newType: TransactionType) {
-        viewModelScope.launch {
-            val allCats = repository.getAllCategoriesSync()
-            val filtered = allCats.filter { it.type == newType }
-            _uiState.value = _uiState.value.copy(
-                type = newType,
-                availableCategories = filtered,
-                selectedCategory = filtered.firstOrNull()
-            )
-        }
-    }
-
-    fun onAmountChanged(newAmount: String) {
-        // Only allow numbers and max one decimal point
-        if (newAmount.isEmpty() || newAmount.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
-            _uiState.value = _uiState.value.copy(
-                amount = newAmount,
-                amountError = null
-            )
-        }
-    }
-
-    fun onCategorySelected(category: CategoryEntity) {
-        _uiState.value = _uiState.value.copy(
-            selectedCategory = category,
-            categoryError = null
+    fun onTypeChanged(newType: TransactionType) = _uiState.update { s ->
+        val filtered = allCategories.filter { it.type == newType.categoryGroup }
+        s.copy(
+            type = newType,
+            availableCategories = filtered,
+            selectedCategory = s.selectedCategory?.takeIf { it.type == newType.categoryGroup } ?: filtered.firstOrNull(),
+            isCreditCardBillPayment = s.isCreditCardBillPayment && newType == TransactionType.EXPENSE
         )
     }
 
-    fun onPaymentMethodChanged(method: PaymentMethod) {
-        _uiState.value = _uiState.value.copy(paymentMethod = method)
+    fun onAmountChanged(v: String) {
+        if (v.isEmpty() || v.matches(Regex("^\\d*\\.?\\d{0,2}$"))) _uiState.update { it.copy(amount = v, amountError = null) }
     }
+    fun onCategorySelected(c: CategoryEntity) = _uiState.update { it.copy(selectedCategory = c, categoryError = null) }
+    fun onPaymentMethodChanged(m: PaymentMethod) = _uiState.update { it.copy(paymentMethod = m) }
+    fun onDateTimeChanged(ms: Long) = _uiState.update { it.copy(dateTimeMillis = ms) }
+    fun onDescriptionChanged(d: String) = _uiState.update { it.copy(description = d) }
+    fun onTagsChanged(t: String) = _uiState.update { it.copy(tags = t) }
+    fun onCreditCardBillPaymentToggled(e: Boolean) = _uiState.update { it.copy(isCreditCardBillPayment = e) }
+    fun setShowDeleteConfirmation(show: Boolean) = _uiState.update { it.copy(showDeleteConfirmation = show) }
+    fun clearError() = _uiState.update { it.copy(errorMessage = null) }
 
-    fun onDateTimeChanged(millis: Long) {
-        _uiState.value = _uiState.value.copy(dateTimeMillis = millis)
-    }
-
-    fun onDescriptionChanged(desc: String) {
-        _uiState.value = _uiState.value.copy(description = desc)
-    }
-
-    fun onTagsChanged(tags: String) {
-        _uiState.value = _uiState.value.copy(tags = tags)
-    }
-
-    fun onCreditCardBillPaymentToggled(enabled: Boolean) {
-        _uiState.value = _uiState.value.copy(isCreditCardBillPayment = enabled)
-    }
-
-    fun setShowDeleteConfirmation(show: Boolean) {
-        _uiState.value = _uiState.value.copy(showDeleteConfirmation = show)
-    }
-
-    fun saveTransaction() {
-        val state = _uiState.value
-        val amountVal = state.amount.toDoubleOrNull()
-
-        if (amountVal == null || amountVal <= 0.0) {
-            _uiState.value = state.copy(amountError = "Please enter a valid amount greater than ₹0")
-            return
+    fun saveTransaction(allowDuplicate: Boolean = false) {
+        val s = _uiState.value
+        if (s.isSaving || (isEditMode && original == null)) return
+        val amount = s.amount.toDoubleOrNull()
+        if (amount == null || amount <= 0.0) {
+            _uiState.update { it.copy(amountError = "Please enter a valid amount greater than ₹0") }; return
         }
-
-        val category = state.selectedCategory
-        if (category == null) {
-            _uiState.value = state.copy(categoryError = "Please select a category")
-            return
+        val category = s.selectedCategory ?: run {
+            _uiState.update { it.copy(categoryError = "Please select a category") }; return
         }
+        _uiState.update { it.copy(isSaving = true, errorMessage = null) }   // set synchronously: blocks double-tap
 
         viewModelScope.launch {
-            _uiState.value = state.copy(isSaving = true, errorMessage = null)
-            val transaction = TransactionEntity(
-                id = state.transactionId ?: 0,
-                amount = amountVal,
-                type = state.type,
-                categoryId = category.id,
-                categoryName = category.name,
-                dateTime = state.dateTimeMillis,
-                paymentMethod = state.paymentMethod,
-                description = state.description.trim(),
-                tags = state.tags.trim(),
-                isCreditCardBillPayment = state.isCreditCardBillPayment,
-                isExcludedFromBudget = state.isCreditCardBillPayment || state.type == TransactionType.TRANSFER
-            )
-
-            if (state.isEditing) {
-                repository.updateTransaction(transaction)
-                _uiState.value = _uiState.value.copy(isSaving = false, saveSuccess = true)
-            } else {
-                val result = repository.insertTransaction(transaction)
-                if (result.isSuccess) {
-                    _uiState.value = _uiState.value.copy(isSaving = false, saveSuccess = true)
+            try {
+                val isCc = s.isCreditCardBillPayment && s.type == TransactionType.EXPENSE
+                val base = original ?: TransactionEntity(
+                    amount = amount, type = s.type, categoryId = category.id, categoryName = category.name,
+                    dateTime = s.dateTimeMillis, paymentMethod = s.paymentMethod
+                )
+                val tx = base.copy(
+                    amount = amount, type = s.type, categoryId = category.id, categoryName = category.name,
+                    dateTime = s.dateTimeMillis, paymentMethod = s.paymentMethod,
+                    description = s.description.trim(), tags = s.tags.trim(),
+                    isCreditCardBillPayment = isCc,
+                    isExcludedFromBudget = isCc || s.type == TransactionType.TRANSFER
+                )
+                if (s.isEditing) {
+                    repository.updateTransaction(tx)
+                    _uiState.update { it.copy(isSaving = false, saveSuccess = true) }
                 } else {
-                    _uiState.value = _uiState.value.copy(
-                        isSaving = false,
-                        errorMessage = result.exceptionOrNull()?.message ?: "Failed to save transaction"
+                    repository.insertTransaction(tx, allowDuplicate).fold(
+                        onSuccess = { _uiState.update { it.copy(isSaving = false, saveSuccess = true) } },
+                        onFailure = { e -> _uiState.update { it.copy(isSaving = false, errorMessage = e.message ?: "Failed to save") } }
                     )
                 }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isSaving = false, errorMessage = e.message ?: "Failed to save") }
             }
-        }
-    }
-
-    fun forceSaveDuplicate() {
-        val state = _uiState.value
-        val amountVal = state.amount.toDoubleOrNull() ?: return
-        val category = state.selectedCategory ?: return
-
-        viewModelScope.launch {
-            val transaction = TransactionEntity(
-                amount = amountVal,
-                type = state.type,
-                categoryId = category.id,
-                categoryName = category.name,
-                dateTime = state.dateTimeMillis,
-                paymentMethod = state.paymentMethod,
-                description = state.description.trim(),
-                tags = state.tags.trim(),
-                isCreditCardBillPayment = state.isCreditCardBillPayment
-            )
-            repository.insertTransaction(transaction, allowDuplicate = true)
-            _uiState.value = _uiState.value.copy(saveSuccess = true)
         }
     }
 
     fun deleteTransaction(onComplete: () -> Unit) {
         val id = _uiState.value.transactionId ?: return
-        viewModelScope.launch {
-            repository.deleteTransactionById(id)
-            onComplete()
-        }
+        viewModelScope.launch { repository.deleteTransactionById(id); onComplete() }
     }
 
     class Factory(
@@ -229,8 +169,7 @@ class AddEditTransactionViewModel(
         private val type: TransactionType?
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return AddEditTransactionViewModel(repository, transactionId, type) as T
-        }
+        override fun <T : ViewModel> create(modelClass: Class<T>): T =
+            AddEditTransactionViewModel(repository, transactionId, type) as T
     }
 }

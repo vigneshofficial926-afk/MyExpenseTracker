@@ -1,5 +1,8 @@
 package com.expensetracker.app.util
 
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
+import java.time.Duration
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -10,6 +13,16 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 
 object DateUtils {
+
+    @Volatile var firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY
+
+    fun todayFlow(): Flow<LocalDate> = flow {
+        while (true) {
+            val now = LocalDateTime.now()
+            emit(now.toLocalDate())
+            delay(Duration.between(now, now.toLocalDate().plusDays(1).atStartOfDay()).toMillis() + 500)
+        }
+    }.distinctUntilChanged()
 
     val DATE_FORMATTER_DD_MM_YYYY: DateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy")
     val DATE_TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy hh:mm a")
@@ -37,22 +50,17 @@ object DateUtils {
         }
     }
 
-    fun getTodayStartAndEnd(): Pair<Long, Long> {
-        val zone = ZoneId.systemDefault()
-        val today = LocalDate.now()
-        val start = today.atStartOfDay(zone).toInstant().toEpochMilli()
-        val end = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
-        return Pair(start, end)
+    fun getTodayStartAndEnd(today: LocalDate = LocalDate.now()): Pair<Long, Long> {
+        val z = ZoneId.systemDefault()
+        return Pair(today.atStartOfDay(z).toInstant().toEpochMilli(),
+            today.plusDays(1).atStartOfDay(z).toInstant().toEpochMilli() - 1)
     }
 
-    fun getWeekStartAndEnd(startDayOfWeek: DayOfWeek = DayOfWeek.MONDAY): Pair<Long, Long> {
-        val zone = ZoneId.systemDefault()
-        val today = LocalDate.now()
-        val startOfWeek = today.with(TemporalAdjusters.previousOrSame(startDayOfWeek))
-        val endOfWeek = startOfWeek.plusDays(6)
-        val start = startOfWeek.atStartOfDay(zone).toInstant().toEpochMilli()
-        val end = endOfWeek.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
-        return Pair(start, end)
+    fun getWeekStartAndEnd(startDayOfWeek: DayOfWeek = firstDayOfWeek, today: LocalDate = LocalDate.now()): Pair<Long, Long> {
+        val z = ZoneId.systemDefault()
+        val start = today.with(TemporalAdjusters.previousOrSame(startDayOfWeek))
+        return Pair(start.atStartOfDay(z).toInstant().toEpochMilli(),
+            start.plusDays(7).atStartOfDay(z).toInstant().toEpochMilli() - 1)
     }
 
     fun getMonthStartAndEnd(yearMonth: YearMonth = YearMonth.now()): Pair<Long, Long> {

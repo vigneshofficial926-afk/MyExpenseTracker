@@ -73,7 +73,7 @@ fun ReportsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 90.dp)
+            contentPadding = PaddingValues(bottom = 16.dp)
         ) {
             // 1. Month Summary & Net Savings Card
             item {

@@ -9,15 +9,20 @@ import com.expensetracker.app.data.model.PaymentMethod
 import com.expensetracker.app.data.model.TransactionType
 import com.expensetracker.app.data.repository.ExpenseRepository
 import com.expensetracker.app.util.DateUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 
 enum class TimePeriodFilter(val displayName: String) {
@@ -66,15 +71,20 @@ class TransactionListViewModel(
     private val _selectedPaymentMethod = MutableStateFlow<PaymentMethod?>(null)
     private val _sortOrder = MutableStateFlow(SortOrder.DATE_DESC)
 
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+    @OptIn(FlowPreview::class)
+    private val debouncedQuery = _searchQuery.debounce { if (it.isEmpty()) 0L else 250L }
+
     val uiState: StateFlow<TransactionListUiState> = combine(
         repository.allTransactions,
         repository.allCategories,
-        _searchQuery,
+        debouncedQuery,
         _selectedPeriod,
         _selectedType,
         _selectedCategory,
         _selectedPaymentMethod,
-        _sortOrder
+        _sortOrder,
+        DateUtils.todayFlow()
     ) { args: Array<Any?> ->
         @Suppress("UNCHECKED_CAST")
         val transactions = args[0] as List<TransactionEntity>
@@ -86,13 +96,14 @@ class TransactionListViewModel(
         val category = args[5] as CategoryEntity?
         val paymentMethod = args[6] as PaymentMethod?
         val sort = args[7] as SortOrder
+        val today = args[8] as LocalDate
 
         // 1. Time range filter
         val (start, end) = when (period) {
             TimePeriodFilter.ALL -> Pair(0L, Long.MAX_VALUE)
-            TimePeriodFilter.TODAY -> DateUtils.getTodayStartAndEnd()
-            TimePeriodFilter.THIS_WEEK -> DateUtils.getWeekStartAndEnd()
-            TimePeriodFilter.THIS_MONTH -> DateUtils.getMonthStartAndEnd()
+            TimePeriodFilter.TODAY -> DateUtils.getTodayStartAndEnd(today)
+            TimePeriodFilter.THIS_WEEK -> DateUtils.getWeekStartAndEnd(today = today)
+            TimePeriodFilter.THIS_MONTH -> DateUtils.getMonthStartAndEnd(YearMonth.from(today))
         }
 
         // 2. Filter
@@ -139,8 +150,8 @@ class TransactionListViewModel(
         }.map { (date, dayTxs) ->
             val dayExp = dayTxs.filter { it.type == TransactionType.EXPENSE && !it.isCreditCardBillPayment }.sumOf { it.amount }
             val formattedDate = when (date) {
-                LocalDate.now() -> "Today (${date.format(DateUtils.DATE_FORMATTER_DD_MM_YYYY)})"
-                LocalDate.now().minusDays(1) -> "Yesterday (${date.format(DateUtils.DATE_FORMATTER_DD_MM_YYYY)})"
+                today -> "Today (${date.format(DateUtils.DATE_FORMATTER_DD_MM_YYYY)})"
+                today.minusDays(1) -> "Yesterday (${date.format(DateUtils.DATE_FORMATTER_DD_MM_YYYY)})"
                 else -> date.format(DateUtils.DATE_FORMATTER_DD_MM_YYYY)
             }
             DayGroupedTransactions(
@@ -163,9 +174,9 @@ class TransactionListViewModel(
             allCategories = categories,
             rawTransactions = filtered
         )
-    }.stateIn(
+    }.flowOn(Dispatchers.Default).stateIn(
         scope = viewModelScope,
-        started = SharingStarted.Lazily,
+        started = SharingStarted.WhileSubscribed(5000),
         initialValue = TransactionListUiState(isLoading = false)
     )
 

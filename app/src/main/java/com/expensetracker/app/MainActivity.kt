@@ -1,32 +1,28 @@
 package com.expensetracker.app
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import android.os.SystemClock
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -36,230 +32,160 @@ import androidx.navigation.navArgument
 import com.expensetracker.app.data.model.TransactionType
 import com.expensetracker.app.ui.navigation.BottomNavBar
 import com.expensetracker.app.ui.navigation.Screen
-import com.expensetracker.app.ui.screens.budget.BudgetScreen
-import com.expensetracker.app.ui.screens.budget.BudgetViewModel
-import com.expensetracker.app.ui.screens.categories.CategoryManagementScreen
-import com.expensetracker.app.ui.screens.categories.CategoryViewModel
-import com.expensetracker.app.ui.screens.dashboard.DashboardScreen
-import com.expensetracker.app.ui.screens.dashboard.DashboardViewModel
-import com.expensetracker.app.ui.screens.goals.SavingsGoalsScreen
-import com.expensetracker.app.ui.screens.goals.SavingsGoalsViewModel
-import com.expensetracker.app.ui.screens.recurring.RecurringTransactionsScreen
-import com.expensetracker.app.ui.screens.recurring.RecurringViewModel
-import com.expensetracker.app.ui.screens.reports.ReportsScreen
-import com.expensetracker.app.ui.screens.reports.ReportsViewModel
-import com.expensetracker.app.ui.screens.settings.PinLockScreen
-import com.expensetracker.app.ui.screens.settings.SettingsScreen
-import com.expensetracker.app.ui.screens.settings.SettingsViewModel
-import com.expensetracker.app.ui.screens.settings.ThemeMode
-import com.expensetracker.app.ui.screens.transaction.AddEditTransactionSheet
-import com.expensetracker.app.ui.screens.transaction.AddEditTransactionViewModel
-import com.expensetracker.app.ui.screens.transaction.TransactionListScreen
-import com.expensetracker.app.ui.screens.transaction.TransactionListViewModel
+import com.expensetracker.app.ui.screens.budget.*
+import com.expensetracker.app.ui.screens.categories.*
+import com.expensetracker.app.ui.screens.dashboard.*
+import com.expensetracker.app.ui.screens.goals.*
+import com.expensetracker.app.ui.screens.recurring.*
+import com.expensetracker.app.ui.screens.reports.*
+import com.expensetracker.app.ui.screens.settings.*
+import com.expensetracker.app.ui.screens.transaction.*
 import com.expensetracker.app.ui.theme.MyExpenseTrackerTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
+
+    private val settingsViewModel: SettingsViewModel by viewModels {
+        val app = application as MyExpenseTrackerApp
+        SettingsViewModel.Factory(app.repository, app.database, applicationContext)
+    }
+    private var stoppedAt = 0L
+
+    override fun onStop() { super.onStop(); stoppedAt = SystemClock.elapsedRealtime() }
+    override fun onStart() {
+        super.onStart()
+        if (stoppedAt != 0L && SystemClock.elapsedRealtime() - stoppedAt > LOCK_TIMEOUT_MS) settingsViewModel.lock()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
         val app = application as MyExpenseTrackerApp
-        val repository = app.repository
-        val database = app.database
 
         setContent {
-            val settingsViewModel: SettingsViewModel = remember {
-                SettingsViewModel(repository, database, applicationContext)
+            val settings by settingsViewModel.uiState.collectAsState()
+            val unlocked by settingsViewModel.sessionUnlocked.collectAsState()
+            val isDark = when (settings.themeMode) {
+                ThemeMode.SYSTEM -> isSystemInDarkTheme(); ThemeMode.LIGHT -> false; ThemeMode.DARK -> true
             }
-            val settingsState by settingsViewModel.uiState.collectAsState()
-
-            val isDark = when (settingsState.themeMode) {
-                ThemeMode.SYSTEM -> isSystemInDarkTheme()
-                ThemeMode.LIGHT -> false
-                ThemeMode.DARK -> true
-            }
-
             MyExpenseTrackerTheme(darkTheme = isDark) {
-                var isUnlocked by remember {
-                    mutableStateOf(!settingsState.isPinLockEnabled || settingsState.userPin.isEmpty())
-                }
-
-                if (!isUnlocked && settingsState.isPinLockEnabled && settingsState.userPin.isNotEmpty()) {
+                val lockActive = settings.isPinLockEnabled && settings.userPin.isNotEmpty()
+                if (lockActive && !unlocked) {
+                    val canBio = settings.isBiometricEnabled && biometricAvailable()
+                    LaunchedEffect(canBio) { if (canBio) promptBiometric { settingsViewModel.unlock() } }
                     PinLockScreen(
-                        correctPin = settingsState.userPin,
-                        onPinSuccess = { isUnlocked = true }
+                        verifyPin = settingsViewModel::verifyPin,
+                        onPinSuccess = settingsViewModel::unlock,
+                        onBiometricClick = if (canBio) ({ promptBiometric { settingsViewModel.unlock() } }) else null
                     )
-                } else {
-                    MainAppScaffold(
-                        app = app,
-                        settingsViewModel = settingsViewModel
-                    )
-                }
+                } else MainAppScaffold(app, settingsViewModel)
             }
         }
     }
+
+    private fun biometricAvailable() = BiometricManager.from(this)
+        .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
+
+    private fun promptBiometric(onSuccess: () -> Unit) {
+        val prompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = onSuccess()
+            })
+        prompt.authenticate(
+            BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Unlock Expense Tracker").setNegativeButtonText("Use PIN")
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK).build()
+        )
+    }
+
+    companion object { private const val LOCK_TIMEOUT_MS = 30_000L }
 }
 
 @Composable
-fun MainAppScaffold(
-    app: MyExpenseTrackerApp,
-    settingsViewModel: SettingsViewModel
-) {
+fun MainAppScaffold(app: MyExpenseTrackerApp, settingsViewModel: SettingsViewModel) {
     val repository = app.repository
     val navController = rememberNavController()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
     val isBottomBarVisible = currentRoute in Screen.bottomNavItems.map { it.route }
     val isFabVisible = currentRoute == Screen.Home.route || currentRoute == Screen.Transactions.route
 
-    // Retain ViewModels at Scaffold scope so bottom tab switching does not recreate them.
-    // This keeps Room database flows hot and cached for 0ms instantaneous navigation.
-    val dashboardViewModel = remember { DashboardViewModel(repository) }
-    val listViewModel = remember { TransactionListViewModel(repository) }
-    val reportsViewModel = remember { ReportsViewModel(repository) }
-    val budgetViewModel = remember { BudgetViewModel(repository) }
+    // Real ViewModels: survive rotation, cleared properly
+    val dashboardViewModel: DashboardViewModel = viewModel(factory = DashboardViewModel.Factory(repository))
+    val listViewModel: TransactionListViewModel = viewModel(factory = TransactionListViewModel.Factory(repository))
+    val reportsViewModel: ReportsViewModel = viewModel(factory = ReportsViewModel.Factory(repository))
+    val budgetViewModel: BudgetViewModel = viewModel(factory = BudgetViewModel.Factory(repository))
+
+    val navigateTab: (String) -> Unit = { route ->
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true; restoreState = true
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            if (isBottomBarVisible) {
-                BottomNavBar(navController = navController)
-            }
-        },
+        bottomBar = { if (isBottomBarVisible) BottomNavBar(navController) },
         floatingActionButton = {
-            if (isFabVisible) {
-                FloatingActionButton(
-                    onClick = {
-                        navController.navigate(Screen.AddEditTransaction.createRoute(type = TransactionType.EXPENSE.name))
-                    },
-                    shape = CircleShape,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color(0xFF030712),
-                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Add Transaction"
-                    )
-                }
-            }
+            if (isFabVisible) FloatingActionButton(
+                onClick = { navController.navigate(Screen.AddEditTransaction.createRoute(type = TransactionType.EXPENSE.name)) },
+                shape = CircleShape, containerColor = MaterialTheme.colorScheme.primary, contentColor = Color(0xFF030712),
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp)
+            ) { Icon(Icons.Default.Add, "Add Transaction") }
         }
     ) { innerPadding ->
         NavHost(
-            navController = navController,
-            startDestination = Screen.Home.route,
-            modifier = Modifier.padding(bottom = if (isBottomBarVisible) 0.dp else innerPadding.calculateBottomPadding()),
-            enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None },
-            popEnterTransition = { EnterTransition.None },
-            popExitTransition = { ExitTransition.None }
+            navController = navController, startDestination = Screen.Home.route,
+            // correct inset handling: no more 90.dp hacks, no double padding in nested Scaffolds
+            modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding),
+            enterTransition = { EnterTransition.None }, exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None }, popExitTransition = { ExitTransition.None }
         ) {
-            // 1. Home Dashboard
             composable(Screen.Home.route) {
                 DashboardScreen(
                     viewModel = dashboardViewModel,
-                    onNavigateToTransactions = { navController.navigate(Screen.Transactions.route) },
-                    onNavigateToAddTransaction = { type ->
-                        navController.navigate(Screen.AddEditTransaction.createRoute(type = type.name))
-                    },
-                    onNavigateToEditTransaction = { id ->
-                        navController.navigate(Screen.AddEditTransaction.createRoute(transactionId = id))
-                    }
+                    onNavigateToTransactions = { navigateTab(Screen.Transactions.route) },
+                    onNavigateToAddTransaction = { navController.navigate(Screen.AddEditTransaction.createRoute(type = it.name)) },
+                    onNavigateToEditTransaction = { navController.navigate(Screen.AddEditTransaction.createRoute(transactionId = it)) }
                 )
             }
-
-            // 2. Transactions History
             composable(Screen.Transactions.route) {
-                TransactionListScreen(
-                    viewModel = listViewModel,
-                    onNavigateToEditTransaction = { id ->
-                        navController.navigate(Screen.AddEditTransaction.createRoute(transactionId = id))
-                    }
-                )
+                TransactionListScreen(listViewModel) { navController.navigate(Screen.AddEditTransaction.createRoute(transactionId = it)) }
             }
-
-            // 3. Reports & Analytics
-            composable(Screen.Reports.route) {
-                ReportsScreen(viewModel = reportsViewModel)
-            }
-
-            // 4. Budget Management
-            composable(Screen.Budget.route) {
-                BudgetScreen(viewModel = budgetViewModel)
-            }
-
-            // 5. Settings
+            composable(Screen.Reports.route) { ReportsScreen(reportsViewModel) }
+            composable(Screen.Budget.route) { BudgetScreen(budgetViewModel) }
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     viewModel = settingsViewModel,
                     onNavigateToCategories = { navController.navigate(Screen.Categories.route) },
-                    onNavigateToRecurring = { navController.navigate(Screen.Recurring.route) }
+                    onNavigateToRecurring = { navController.navigate(Screen.Recurring.route) },
+                    onNavigateToGoals = { navController.navigate(Screen.SavingsGoals.route) }
                 )
             }
-
-            // 6. Add/Edit Transaction Sub-screen
             composable(
                 route = Screen.AddEditTransaction.route,
                 arguments = listOf(
-                    navArgument("transactionId") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    },
-                    navArgument("type") {
-                        type = NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    }
+                    navArgument("transactionId") { type = NavType.StringType; nullable = true; defaultValue = null },
+                    navArgument("type") { type = NavType.StringType; nullable = true; defaultValue = null }
                 )
-            ) { backStackEntry ->
-                val idStr = backStackEntry.arguments?.getString("transactionId")
-                val typeStr = backStackEntry.arguments?.getString("type")
-                val txId = idStr?.toLongOrNull()
-                val type = if (!typeStr.isNullOrBlank()) TransactionType.fromString(typeStr) else null
-
-                val addEditViewModel: AddEditTransactionViewModel = remember(txId, type) {
-                    AddEditTransactionViewModel(repository, txId, type)
-                }
-                AddEditTransactionSheet(
-                    viewModel = addEditViewModel,
-                    onNavigateBack = { navController.popBackStack() }
+            ) { entry ->
+                val txId = entry.arguments?.getString("transactionId")?.toLongOrNull()
+                val type = entry.arguments?.getString("type")?.takeIf { it.isNotBlank() }?.let { TransactionType.fromString(it) }
+                val vm: AddEditTransactionViewModel = viewModel(
+                    key = "tx_${txId}_$type", factory = AddEditTransactionViewModel.Factory(repository, txId, type)
                 )
+                AddEditTransactionSheet(vm) { navController.popBackStack() }
             }
-
-            // 7. Savings Goals Sub-screen
             composable(Screen.SavingsGoals.route) {
-                val goalsViewModel: SavingsGoalsViewModel = remember {
-                    SavingsGoalsViewModel(repository)
-                }
-                SavingsGoalsScreen(
-                    viewModel = goalsViewModel,
-                    onNavigateBack = { navController.popBackStack() }
-                )
+                val vm: SavingsGoalsViewModel = viewModel(factory = SavingsGoalsViewModel.Factory(repository))
+                SavingsGoalsScreen(vm) { navController.popBackStack() }
             }
-
-            // 8. Recurring Bills Sub-screen
             composable(Screen.Recurring.route) {
-                val recurringViewModel: RecurringViewModel = remember {
-                    RecurringViewModel(repository)
-                }
-                RecurringTransactionsScreen(
-                    viewModel = recurringViewModel,
-                    onNavigateBack = { navController.popBackStack() }
-                )
+                val vm: RecurringViewModel = viewModel(factory = RecurringViewModel.Factory(repository))
+                RecurringTransactionsScreen(vm) { navController.popBackStack() }
             }
-
-            // 9. Categories Sub-screen
             composable(Screen.Categories.route) {
-                val catViewModel: CategoryViewModel = remember {
-                    CategoryViewModel(repository)
-                }
-                CategoryManagementScreen(
-                    viewModel = catViewModel,
-                    onNavigateBack = { navController.popBackStack() }
-                )
+                val vm: CategoryViewModel = viewModel(factory = CategoryViewModel.Factory(repository))
+                CategoryManagementScreen(vm) { navController.popBackStack() }
             }
         }
     }

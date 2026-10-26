@@ -62,6 +62,11 @@ import com.expensetracker.app.ui.theme.IncomeGreen
 import com.expensetracker.app.util.CurrencyFormatter
 import com.expensetracker.app.util.DateUtils
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.verticalScroll
+import com.expensetracker.app.data.local.entity.CategoryEntity
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecurringTransactionsScreen(
@@ -71,11 +76,6 @@ fun RecurringTransactionsScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
-    var titleToAdd by remember { mutableStateOf("") }
-    var amountToAdd by remember { mutableStateOf("") }
-    var typeToAdd by remember { mutableStateOf(TransactionType.EXPENSE) }
-    var frequencyToAdd by remember { mutableStateOf(RecurrenceFrequency.MONTHLY) }
-    var methodToAdd by remember { mutableStateOf(PaymentMethod.BANK_TRANSFER) }
     var ruleToDelete by remember { mutableStateOf<RecurringTransactionEntity?>(null) }
 
     ruleToDelete?.let { rule ->
@@ -91,79 +91,12 @@ fun RecurringTransactionsScreen(
         )
     }
 
-    if (showAddDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddDialog = false },
-            title = { Text("New Recurring Rule") },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = titleToAdd,
-                        onValueChange = { titleToAdd = it },
-                        label = { Text("Rule Title") },
-                        placeholder = { Text("e.g. Apartment Rent, Netflix") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = amountToAdd,
-                        onValueChange = { if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) amountToAdd = it },
-                        label = { Text("Amount (₹)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("Frequency", style = MaterialTheme.typography.labelMedium)
-                    Row(
-                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        RecurrenceFrequency.entries.forEach { freq ->
-                            FilterChip(
-                                selected = frequencyToAdd == freq,
-                                onClick = { frequencyToAdd = freq },
-                                label = { Text(freq.displayName) }
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val amt = amountToAdd.toDoubleOrNull() ?: 0.0
-                        if (titleToAdd.isNotBlank() && amt > 0) {
-                            val cat = uiState.categories.firstOrNull { it.type == typeToAdd }
-                            val catId = cat?.id ?: 1L
-                            val catName = cat?.name ?: "Recurring"
-                            viewModel.addRecurring(
-                                title = titleToAdd,
-                                amount = amt,
-                                type = typeToAdd,
-                                categoryId = catId,
-                                categoryName = catName,
-                                paymentMethod = methodToAdd,
-                                frequency = frequencyToAdd,
-                                startDateMillis = System.currentTimeMillis(),
-                                description = "Recurring $titleToAdd"
-                            )
-                            titleToAdd = ""
-                            amountToAdd = ""
-                            showAddDialog = false
-                        }
-                    }
-                ) {
-                    Text("Add Rule")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) { Text("Cancel") }
-            }
+    if (showAddDialog) AddRecurringDialog(uiState.categories, { showAddDialog = false }) { title, amt, type, cat, method, freq ->
+        viewModel.addRecurring(
+            title, amt, type, cat.id, cat.name, method, freq,
+            java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), ""
         )
+        showAddDialog = false
     }
 
     Scaffold(
@@ -194,7 +127,7 @@ fun RecurringTransactionsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 90.dp)
+            contentPadding = PaddingValues(bottom = 88.dp)
         ) {
             if (uiState.recurringList.isEmpty()) {
                 item {
@@ -284,4 +217,59 @@ fun RecurringTransactionsScreen(
             }
         }
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AddRecurringDialog(
+    categories: List<CategoryEntity>, onDismiss: () -> Unit,
+    onSave: (String, Double, TransactionType, CategoryEntity, PaymentMethod, RecurrenceFrequency) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var type by remember { mutableStateOf(TransactionType.EXPENSE) }
+    var freq by remember { mutableStateOf(RecurrenceFrequency.MONTHLY) }
+    var method by remember { mutableStateOf(PaymentMethod.BANK_TRANSFER) }
+    var catId by remember(type) { mutableStateOf<Long?>(null) }
+    val options = categories.filter { it.type == type }
+    val selected = options.firstOrNull { it.id == catId } ?: options.firstOrNull()
+    val amt = amount.toDoubleOrNull() ?: 0.0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New Recurring Rule") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(TransactionType.EXPENSE, TransactionType.INCOME).forEach {
+                        FilterChip(selected = type == it, onClick = { type = it }, label = { Text(it.displayName) })
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(title, { title = it }, label = { Text("Rule Title") }, placeholder = { Text("e.g. Rent, Salary, Netflix") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(amount, { if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d{0,2}$"))) amount = it },
+                    label = { Text("Amount (₹)") }, keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                    singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                Spacer(Modifier.height(12.dp)); Text("Category", style = MaterialTheme.typography.labelMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    options.forEach { c -> FilterChip(selected = selected?.id == c.id, onClick = { catId = c.id }, label = { Text(c.name) }) }
+                }
+                Spacer(Modifier.height(12.dp)); Text("Frequency", style = MaterialTheme.typography.labelMedium)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    RecurrenceFrequency.entries.forEach { f -> FilterChip(selected = freq == f, onClick = { freq = f }, label = { Text(f.displayName) }) }
+                }
+                Spacer(Modifier.height(12.dp)); Text("Payment Method", style = MaterialTheme.typography.labelMedium)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PaymentMethod.entries.forEach { m -> FilterChip(selected = method == m, onClick = { method = m }, label = { Text(m.displayName) }) }
+                }
+            }
+        },
+        confirmButton = {
+            Button(enabled = title.isNotBlank() && amt > 0 && selected != null,
+                onClick = { onSave(title.trim(), amt, type, selected!!, method, freq) }) { Text("Add Rule") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }

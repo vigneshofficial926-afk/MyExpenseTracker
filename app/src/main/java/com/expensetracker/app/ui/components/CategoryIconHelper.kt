@@ -28,6 +28,35 @@ import androidx.compose.ui.graphics.vector.ImageVector
 
 object CategoryIconHelper {
 
+    /** Transactions store only the category NAME, so resolve an icon from the name. */
+    fun forCategoryName(name: String): ImageVector {
+        val n = name.lowercase()
+        return when {
+            "grocer" in n || "food" in n -> Icons.Default.Restaurant
+            "hotel" in n || "restaurant" in n -> Icons.Default.LocalCafe
+            "tea" in n || "coffee" in n || "snack" in n -> Icons.Default.Coffee
+            "transport" in n || "fuel" in n -> Icons.Default.DirectionsCar
+            "rent" in n -> Icons.Default.Home
+            "electric" in n || "utilit" in n -> Icons.Default.Bolt
+            "mobile" in n || "internet" in n -> Icons.Default.PhoneAndroid
+            "shop" in n -> Icons.Default.ShoppingBag
+            "health" in n || "medic" in n -> Icons.Default.LocalHospital
+            "entertain" in n -> Icons.Default.Movie
+            "travel" in n -> Icons.Default.Flight
+            "educat" in n -> Icons.Default.School
+            "emi" in n || "loan" in n || "credit" in n -> Icons.Default.CreditCard
+            "family" in n -> Icons.Default.Groups
+            "subscri" in n -> Icons.Default.Subscriptions
+            "salary" in n -> Icons.Default.AccountBalanceWallet
+            "freelance" in n -> Icons.Default.LaptopMac
+            "business" in n -> Icons.Default.TrendingUp
+            "interest" in n -> Icons.Default.Savings
+            "gift" in n -> Icons.Default.CardGiftcard
+            "income" in n -> Icons.Default.AttachMoney
+            else -> getIcon(name)
+        }
+    }
+
     fun getIcon(iconName: String): ImageVector {
         return when (iconName.lowercase()) {
             "restaurant" -> Icons.Default.Restaurant

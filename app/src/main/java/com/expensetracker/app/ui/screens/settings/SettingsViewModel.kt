@@ -11,10 +11,14 @@ import com.expensetracker.app.util.BackupRestoreHelper
 import com.expensetracker.app.util.CsvExporter
 import com.expensetracker.app.util.CurrencyFormatter
 import com.expensetracker.app.util.DateUtils
+import android.net.Uri
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.security.MessageDigest
+import java.security.SecureRandom
 import java.time.DayOfWeek
 
 enum class ThemeMode {
@@ -45,6 +49,7 @@ class SettingsViewModel(
 ) : ViewModel() {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+    init { migrateLegacyPin() }                       // must sit BEFORE _uiState
 
     private val _uiState = MutableStateFlow(
         SettingsUiState(
@@ -52,43 +57,70 @@ class SettingsViewModel(
             firstDayOfWeek = DayOfWeek.valueOf(prefs.getString("first_day_of_week", DayOfWeek.MONDAY.name) ?: DayOfWeek.MONDAY.name),
             isPinLockEnabled = prefs.getBoolean("pin_lock_enabled", false),
             isBiometricEnabled = prefs.getBoolean("biometric_enabled", false),
-            userPin = prefs.getString("user_pin", "") ?: "",
+            userPin = prefs.getString("pin_hash", "") ?: "",   // now holds the HASH; non-empty = PIN set
             isSmsTrackingEnabled = prefs.getBoolean("sms_tracking_enabled", false)
         )
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
-    fun setThemeMode(mode: ThemeMode) {
-        prefs.edit().putString("theme_mode", mode.name).apply()
-        _uiState.value = _uiState.value.copy(themeMode = mode)
-    }
+    init { DateUtils.firstDayOfWeek = _uiState.value.firstDayOfWeek }
 
+    private val _sessionUnlocked = MutableStateFlow(false)
+    val sessionUnlocked: StateFlow<Boolean> = _sessionUnlocked.asStateFlow()
+    fun unlock() { _sessionUnlocked.value = true }
+    fun lock() { _sessionUnlocked.value = false }
+    fun consumeMessage() = _uiState.update { it.copy(operationMessage = null) }
+
+    private fun hashPin(pin: String, salt: String) =
+        MessageDigest.getInstance("SHA-256").digest((salt + pin).toByteArray()).joinToString("") { "%02x".format(it) }
+    private fun newSalt() = ByteArray(16).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
+    private fun storePin(pin: String) {
+        val salt = newSalt()
+        prefs.edit().putString("pin_salt", salt).putString("pin_hash", hashPin(pin, salt)).putBoolean("pin_lock_enabled", true).apply()
+    }
+    private fun migrateLegacyPin() {
+        val legacy = prefs.getString("user_pin", null) ?: return
+        if (legacy.isNotEmpty()) storePin(legacy)
+        prefs.edit().remove("user_pin").apply()
+    }
+    fun verifyPin(pin: String): Boolean =
+        hashPin(pin, prefs.getString("pin_salt", "") ?: "") == prefs.getString("pin_hash", "")
+
+    fun setPin(pin: String) {
+        storePin(pin)
+        _uiState.update { it.copy(userPin = prefs.getString("pin_hash", "") ?: "", isPinLockEnabled = true, isSettingPinDialogOpen = false) }
+        _sessionUnlocked.value = true
+    }
+    fun disablePin() {
+        prefs.edit().remove("pin_hash").remove("pin_salt").putBoolean("pin_lock_enabled", false).putBoolean("biometric_enabled", false).apply()
+        _uiState.update { it.copy(userPin = "", isPinLockEnabled = false, isBiometricEnabled = false) }
+    }
     fun setFirstDayOfWeek(day: DayOfWeek) {
         prefs.edit().putString("first_day_of_week", day.name).apply()
-        _uiState.value = _uiState.value.copy(firstDayOfWeek = day)
+        DateUtils.firstDayOfWeek = day
+        _uiState.update { it.copy(firstDayOfWeek = day) }
+    }
+    fun restoreBackup(uri: Uri) {
+        viewModelScope.launch {
+            val r = BackupRestoreHelper.restoreBackup(context, database, uri)
+            _uiState.update {
+                it.copy(operationMessage = r.fold({ n -> "Restored $n transactions from backup." }, { e -> "Restore failed: ${e.message}" }))
+            }
+        }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        prefs.edit().putString("theme_mode", mode.name).apply()
+        _uiState.update { it.copy(themeMode = mode) }
     }
 
     fun toggleBiometric(enabled: Boolean) {
         prefs.edit().putBoolean("biometric_enabled", enabled).apply()
-        _uiState.value = _uiState.value.copy(isBiometricEnabled = enabled)
+        _uiState.update { it.copy(isBiometricEnabled = enabled) }
     }
 
-    fun openPinDialog() { _uiState.value = _uiState.value.copy(isSettingPinDialogOpen = true) }
-    fun closePinDialog() { _uiState.value = _uiState.value.copy(isSettingPinDialogOpen = false) }
-
-    fun setPin(pin: String) {
-        prefs.edit().putString("user_pin", pin).putBoolean("pin_lock_enabled", pin.isNotEmpty()).apply()
-        _uiState.value = _uiState.value.copy(
-            userPin = pin,
-            isPinLockEnabled = pin.isNotEmpty(),
-            isSettingPinDialogOpen = false
-        )
-    }
-
-    fun disablePin() {
-        prefs.edit().remove("user_pin").putBoolean("pin_lock_enabled", false).apply()
-        _uiState.value = _uiState.value.copy(userPin = "", isPinLockEnabled = false)
-    }
+    fun openPinDialog() { _uiState.update { it.copy(isSettingPinDialogOpen = true) } }
+    fun closePinDialog() { _uiState.update { it.copy(isSettingPinDialogOpen = false) } }
 
     fun exportDatabaseBackup() {
         viewModelScope.launch {

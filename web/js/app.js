@@ -47,6 +47,14 @@ const DEFAULT_ACCOUNTS = [
 ];
 
 // Helper Functions
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function parseLocalDate(v, keepTimeFrom) {
+  const [y, m, d] = v.split('-').map(Number);
+  const t = keepTimeFrom ? new Date(keepTimeFrom) : new Date();
+  return new Date(y, m - 1, d, t.getHours(), t.getMinutes(), t.getSeconds()).getTime();
+}
+
 const formatINR = (amt) => {
   return "₹" + Math.abs(amt).toLocaleString('en-IN', {
     maximumFractionDigits: 2,
@@ -267,32 +275,25 @@ function loadSettings() {
 function processDueRecurring() {
   const recurring = db.get(STORAGE_KEYS.RECURRING, []);
   const transactions = db.get(STORAGE_KEYS.TRANSACTIONS, []);
-  const now = Date.now();
-  let added = 0;
-
+  const now = Date.now(); let added = 0;
   recurring.forEach(rule => {
-    if (rule.isActive && rule.nextDueDate <= now) {
+    rule.anchorDay = rule.anchorDay || new Date(rule.nextDueDate).getDate();
+    let guard = 0;
+    while (rule.isActive && rule.nextDueDate <= now && guard++ < 366) {
       transactions.unshift({
-        id: Date.now() + Math.random(),
-        amount: rule.amount,
-        type: rule.type,
-        categoryName: rule.categoryName,
-        paymentMethod: rule.paymentMethod,
-        description: `[Recurring] ${rule.title}`,
-        tags: 'recurring',
-        dateTime: rule.nextDueDate,
-        isCreditCardBillPayment: false
+        id: Date.now() + Math.random(), amount: rule.amount, type: rule.type, categoryName: rule.categoryName,
+        paymentMethod: rule.paymentMethod, description: `[Recurring] ${rule.title}`, tags: 'recurring',
+        dateTime: rule.nextDueDate, isCreditCardBillPayment: false
       });
-      // advance schedule
-      rule.nextDueDate = rule.nextDueDate + (30 * 86400000);
-      added++;
+      const d = new Date(rule.nextDueDate);
+      if (rule.frequency === 'Daily') d.setDate(d.getDate() + 1);
+      else if (rule.frequency === 'Weekly') d.setDate(d.getDate() + 7);
+      else { d.setDate(1); d.setMonth(d.getMonth() + 1);
+             d.setDate(Math.min(rule.anchorDay, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); }
+      rule.nextDueDate = d.getTime(); added++;
     }
   });
-
-  if (added > 0) {
-    db.set(STORAGE_KEYS.TRANSACTIONS, transactions);
-    db.set(STORAGE_KEYS.RECURRING, recurring);
-  }
+  if (added > 0) { db.set(STORAGE_KEYS.TRANSACTIONS, transactions); db.set(STORAGE_KEYS.RECURRING, recurring); }
 }
 
 function showToast(msg) {
@@ -374,8 +375,8 @@ function renderHome(container, transactions, accounts, budgets, startOfMonth, en
     .filter(tx => tx.dateTime >= todayStart.getTime() && tx.type === 'EXPENSE' && !tx.isCreditCardBillPayment)
     .reduce((s, tx) => s + tx.amount, 0);
 
-  const weekStart = new Date();
-  weekStart.setDate(weekStart.getDate() - 7);
+  const weekStart = new Date(); weekStart.setHours(0,0,0,0);
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
   const weekExpense = transactions
     .filter(tx => tx.dateTime >= weekStart.getTime() && tx.type === 'EXPENSE' && !tx.isCreditCardBillPayment)
     .reduce((s, tx) => s + tx.amount, 0);
@@ -582,7 +583,7 @@ function renderTransactions(container, transactions) {
                id="txSearchInput"
                class="tx-search-input" 
                placeholder="Search transactions..." 
-               value="${state.txSearchQuery}" 
+               value="${esc(state.txSearchQuery)}" 
                oninput="searchTransactions(this.value)"
                autocomplete="off"
                autocorrect="off"
@@ -681,7 +682,7 @@ function renderReports(container, transactions, budgets, startOfMonth, endOfMont
               <div style="width:24px;height:24px;border-radius:50%;background:var(--primary-container);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;">
                 ${idx + 1}
               </div>
-              <span style="font-size:13px;font-weight:600;">${name}</span>
+              <span style="font-size:13px;font-weight:600;">${esc(name)}</span>
             </div>
             <span style="font-size:13px;font-weight:700;">${formatINR(amt)}</span>
           </div>
@@ -747,16 +748,16 @@ function renderBudget(container, transactions, accounts, budgets, startOfMonth, 
       Category Budgets
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;">
-      ${categories.slice(0, 8).map(cat => {
+      ${categories.map(cat => {
         const catBudget = (budgets.find(b => b.monthYear === currentMonthKey && b.categoryId === cat.id) || {}).budgetAmount || 0;
         const catSpent = transactions
           .filter(tx => tx.dateTime >= startOfMonth && tx.dateTime <= endOfMonth && tx.categoryName === cat.name && tx.type === 'EXPENSE')
           .reduce((s, tx) => s + tx.amount, 0);
 
         return `
-          <div class="card" style="padding:12px 14px;margin-bottom:0;cursor:pointer;" onclick="openBudgetModal(${cat.id}, ${catBudget}, '${cat.name}')">
+          <div class="card" style="padding:12px 14px;margin-bottom:0;cursor:pointer;" data-name="${esc(cat.name)}" onclick="openBudgetModal(${cat.id}, ${catBudget}, this.dataset.name)">
             <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-size:13px;font-weight:700;">${cat.name}</span>
+              <span style="font-size:13px;font-weight:700;">${esc(cat.name)}</span>
               <span style="font-size:13px;font-weight:700;">${catBudget > 0 ? `${formatINR(catSpent)} / ${formatINR(catBudget)}` : '<span style="color:var(--primary);font-size:11px;">+ Set Budget</span>'}</span>
             </div>
             ${catBudget > 0 ? `
@@ -1030,6 +1031,7 @@ function switchTab(tab) {
 // 7. Modals: Add / Edit Transaction
 function openAddModal(defaultType = 'EXPENSE', txId = null) {
   state.editingTxId = txId;
+  document.getElementById('deleteTxBtn').style.display = txId ? 'flex' : 'none';
   const modal = document.getElementById('addTxModal');
   const categories = db.get(STORAGE_KEYS.CATEGORIES, []);
 
@@ -1116,10 +1118,10 @@ function renderCategoryChipsInModal(categories, selected) {
     const catColor = cat.color || 'var(--primary)';
     return `
       <button type="button" class="category-chip-select ${isSel ? 'selected' : ''}" 
-              data-cat-name="${cat.name}"
-              onclick="selectModalCategory('${cat.name.replace(/'/g, "\\'")}')">
+              data-cat-name="${esc(cat.name)}"
+              onclick="selectModalCategory(this.dataset.catName)">
         <span class="material-symbols-rounded" style="font-size:15px;color:${isSel ? '#fff' : catColor};">${cat.icon || 'label'}</span>
-        <span>${cat.name}</span>
+        <span>${esc(cat.name)}</span>
       </button>
     `;
   }).join('');
@@ -1151,13 +1153,9 @@ function saveTransactionFromModal() {
   const tags = document.getElementById('txTagsInput').value.trim();
   const isCcBill = document.getElementById('txCcBillCheckbox').checked;
   const dateVal = document.getElementById('txDateInput').value;
-  const dateTime = dateVal ? new Date(dateVal).getTime() : Date.now();
-
   const transactions = db.get(STORAGE_KEYS.TRANSACTIONS, []);
-  let existing = null;
-  if (state.editingTxId) {
-    existing = transactions.find(t => t.id === state.editingTxId);
-  }
+  const existing = state.editingTxId ? transactions.find(t => t.id === state.editingTxId) : null;
+  const dateTime = dateVal ? parseLocalDate(dateVal, existing && existing.dateTime) : Date.now();
 
   // Payment method selection and validation
   const pmEl = document.getElementById('txPaymentMethod');
@@ -1198,6 +1196,13 @@ function saveTransactionFromModal() {
   closeModal('addTxModal');
   showToast(state.editingTxId ? 'Transaction updated' : 'Transaction saved');
   renderApp();
+}
+
+function deleteFromModal() {
+  if (!state.editingTxId) return;
+  const id = state.editingTxId;
+  closeModal('addTxModal');
+  deleteTransaction(id);
 }
 
 function deleteTransaction(txId) {
@@ -1410,7 +1415,7 @@ function parseAndRecordSmsInWeb() {
     box.style.display = 'block';
     box.innerHTML = `
       <div style="background:var(--expense-light);color:var(--expense);padding:10px 12px;border-radius:var(--radius-md);font-size:12px;font-weight:600;">
-        ${result.error}
+        ${esc(result.error)}
       </div>
     `;
     return;
@@ -1819,11 +1824,11 @@ function renderTxItemHtml(tx) {
         <span class="material-symbols-rounded">${icon}</span>
       </div>
       <div class="tx-details">
-        <div class="tx-title">${tx.description || tx.categoryName}</div>
+        <div class="tx-title">${esc(tx.description || tx.categoryName)}</div>
         <div class="tx-meta">
-          <span>${tx.categoryName}</span>
+          <span>${esc(tx.categoryName)}</span>
           <span>•</span>
-          <span class="badge-tag">${tx.paymentMethod}</span>
+          <span class="badge-tag">${esc(tx.paymentMethod)}</span>
           ${tx.isCreditCardBillPayment ? '<span class="badge-tag" style="color:var(--primary)">CC Settle</span>' : ''}
         </div>
       </div>

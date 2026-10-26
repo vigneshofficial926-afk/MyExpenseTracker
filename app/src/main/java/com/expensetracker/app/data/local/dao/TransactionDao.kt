@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.expensetracker.app.data.local.entity.TransactionEntity
+import com.expensetracker.app.data.model.TransactionType
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -17,6 +18,15 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions ORDER BY dateTime DESC, id DESC")
     suspend fun getAllTransactionsList(): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions ORDER BY dateTime DESC, id DESC LIMIT :limit")
+    suspend fun getRecentTransactionsList(limit: Int): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions WHERE amount = :amount AND type = :type AND categoryId = :categoryId AND dateTime BETWEEN :from AND :to")
+    suspend fun findPotentialDuplicates(amount: Double, type: TransactionType, categoryId: Long, from: Long, to: Long): List<TransactionEntity>
+
+    @Query("UPDATE transactions SET categoryName = :newName WHERE categoryId = :categoryId")
+    suspend fun renameCategory(categoryId: Long, newName: String)
 
     @Query("SELECT * FROM transactions WHERE dateTime >= :startTime AND dateTime <= :endTime ORDER BY dateTime DESC, id DESC")
     fun getTransactionsBetween(startTime: Long, endTime: Long): Flow<List<TransactionEntity>>

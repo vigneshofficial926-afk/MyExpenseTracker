@@ -253,7 +253,7 @@ fun SavingsGoalsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 90.dp)
+            contentPadding = PaddingValues(bottom = 88.dp)
         ) {
             // Overview Card
             item {

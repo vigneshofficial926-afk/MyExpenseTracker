@@ -106,7 +106,7 @@ fun DashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 90.dp)
+            contentPadding = PaddingValues(bottom = 88.dp)
         ) {
             // 1. Budget Alert Banner (if >= 80% or >= 100%)
             uiState.budgetAlertMessage?.let { alertMsg ->
@@ -135,7 +135,7 @@ fun DashboardScreen(
                                 text = alertMsg,
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Medium,
-                                color = if (uiState.budgetUtilization >= 100f) ExpenseRed else Color(0xFF78350F)
+                                color = if (uiState.budgetUtilization >= 100f) ExpenseRed else MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -243,7 +243,7 @@ fun DashboardScreen(
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, Color(0x14FFFFFF)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -283,7 +283,7 @@ fun DashboardScreen(
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, Color(0x14FFFFFF)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {

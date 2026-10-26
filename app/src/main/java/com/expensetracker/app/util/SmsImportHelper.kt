@@ -1,169 +1,102 @@
 package com.expensetracker.app.util
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.core.content.ContextCompat
 import com.expensetracker.app.data.local.ExpenseDatabase
+import com.expensetracker.app.data.local.dao.TransactionDao
+import com.expensetracker.app.data.local.entity.AccountEntity
+import com.expensetracker.app.data.local.entity.CategoryEntity
 import com.expensetracker.app.data.local.entity.TransactionEntity
 import com.expensetracker.app.data.model.TransactionType
-import com.expensetracker.app.domain.FinancialCalculator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
 
 object SmsImportHelper {
 
-    suspend fun importFromSmsInbox(
-        context: Context,
-        lookbackDays: Int = 30
-    ): Result<Int> = withContext(Dispatchers.IO) {
-        try {
-            val database = ExpenseDatabase.getInstance(context)
-            val transactionDao = database.transactionDao()
-            val categoryDao = database.categoryDao()
-            val accountDao = database.accountDao()
-
-            val allCategories = categoryDao.getAllCategoriesList()
-            val allAccounts = accountDao.getAllAccountsList()
-            val existingRecent = transactionDao.getAllTransactionsList()
-
-            val cutoffMillis = System.currentTimeMillis() - (lookbackDays * 86_400_000L)
-            val uri = Uri.parse("content://sms/inbox")
-            val projection = arrayOf("address", "body", "date")
-            val selection = "date >= ?"
-            val selectionArgs = arrayOf(cutoffMillis.toString())
-            val sortOrder = "date DESC"
-
-            val cursor = context.contentResolver.query(uri, projection, selection, selectionArgs, sortOrder)
-                ?: return@withContext Result.failure(Exception("Cannot access SMS inbox. Please check SMS permissions."))
-
-            var importedCount = 0
-
-            cursor.use { c ->
-                val addressIdx = c.getColumnIndexOrThrow("address")
-                val bodyIdx = c.getColumnIndexOrThrow("body")
-                val dateIdx = c.getColumnIndexOrThrow("date")
-
-                while (c.moveToNext()) {
-                    val address = c.getString(addressIdx) ?: ""
-                    val body = c.getString(bodyIdx) ?: ""
-                    val date = c.getLong(dateIdx)
-
-                    val parsed = SmsTransactionParser.parse(address, body, date) ?: continue
-
-                    // Duplicate check via reference number
-                    if (!parsed.referenceNumber.isNullOrBlank()) {
-                        val isRefDuplicate = existingRecent.any { tx ->
-                            tx.tags.contains(parsed.referenceNumber, ignoreCase = true) ||
-                                    tx.description.contains(parsed.referenceNumber, ignoreCase = true)
-                        }
-                        if (isRefDuplicate) continue
-                    }
-
-                    // Matching category
-                    val matchingCategory = allCategories.find {
-                        it.name.equals(parsed.suggestedCategory, ignoreCase = true) && it.type == parsed.type
-                    } ?: allCategories.find { it.type == parsed.type } ?: continue
-
-                    // Matching account
-                    val matchingAccount = if (parsed.bankName != null) {
-                        allAccounts.find { it.name.contains(parsed.bankName, ignoreCase = true) }
-                    } else null ?: allAccounts.firstOrNull()
-
-                    val description = buildString {
-                        append(parsed.merchantOrSender)
-                        if (!parsed.accountOrCardMasked.isNullOrBlank()) {
-                            append(" (${parsed.accountOrCardMasked})")
-                        }
-                    }
-
-                    val tagsList = mutableListOf("sms-import")
-                    if (!parsed.referenceNumber.isNullOrBlank()) tagsList.add("ref:${parsed.referenceNumber}")
-                    if (!parsed.bankName.isNullOrBlank()) tagsList.add("bank:${parsed.bankName}")
-
-                    val candidate = TransactionEntity(
-                        amount = parsed.amount,
-                        type = parsed.type,
-                        categoryId = matchingCategory.id,
-                        categoryName = matchingCategory.name,
-                        dateTime = parsed.dateTime,
-                        paymentMethod = parsed.paymentMethod,
-                        description = description,
-                        tags = tagsList.joinToString(", "),
-                        sourceAccountId = matchingAccount?.id,
-                        destinationAccountId = null,
-                        isCreditCardBillPayment = parsed.isCreditCardBillPayment,
-                        isExcludedFromBudget = parsed.isCreditCardBillPayment || parsed.type == TransactionType.TRANSFER
-                    )
-
-                    // Duplicate check via amount + time window
-                    val isDuplicate = FinancialCalculator.isDuplicateTransaction(
-                        candidate = candidate,
-                        existingList = existingRecent,
-                        timeWindowMillis = 300_000L
-                    )
-                    if (isDuplicate) continue
-
-                    transactionDao.insertTransaction(candidate)
-                    importedCount++
-                }
-            }
-
-            Result.success(importedCount)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    private fun List<CategoryEntity>.resolveFor(p: ParsedSmsTransaction): CategoryEntity? {
+        val g = p.type.categoryGroup
+        return firstOrNull { it.type == g && it.name.equals(p.suggestedCategory, true) }
+            ?: firstOrNull { it.type == g && it.name.startsWith("Other", true) }
+            ?: firstOrNull { it.type == g }
     }
 
-    suspend fun importSingleSmsText(
-        context: Context,
-        rawSmsText: String,
-        sender: String? = null
-    ): Result<TransactionEntity> = withContext(Dispatchers.IO) {
-        val parsed = SmsTransactionParser.parse(sender, rawSmsText)
-            ?: return@withContext Result.failure(Exception("Could not extract a valid financial transaction. Ensure this is a bank or UPI debit/credit message and not an OTP or promotional alert."))
+    /** Saves unless duplicate. Updates [existing] so batch scans de-duplicate themselves. */
+    suspend fun saveIfUnique(
+        dao: TransactionDao,
+        categories: List<CategoryEntity>,
+        accounts: List<AccountEntity>,
+        p: ParsedSmsTransaction,
+        existing: MutableList<TransactionEntity>
+    ): TransactionEntity? {
+        val ref = p.referenceNumber?.takeIf { it.isNotBlank() }
+        val duplicate = if (ref != null)
+            existing.any { it.tags.contains(ref, true) || it.description.contains(ref, true) }
+        else
+            existing.any { it.amount == p.amount && it.type == p.type && abs(it.dateTime - p.dateTime) <= 300_000L }
+        if (duplicate) return null
 
-        val database = ExpenseDatabase.getInstance(context)
-        val transactionDao = database.transactionDao()
-        val categoryDao = database.categoryDao()
-        val accountDao = database.accountDao()
-
-        val allCategories = categoryDao.getAllCategoriesList()
-        val allAccounts = accountDao.getAllAccountsList()
-
-        val matchingCategory = allCategories.find {
-            it.name.equals(parsed.suggestedCategory, ignoreCase = true) && it.type == parsed.type
-        } ?: allCategories.find { it.type == parsed.type }
-        ?: return@withContext Result.failure(Exception("No matching category found."))
-
-        val matchingAccount = if (parsed.bankName != null) {
-            allAccounts.find { it.name.contains(parsed.bankName, ignoreCase = true) }
-        } else null ?: allAccounts.firstOrNull()
-
+        val category = categories.resolveFor(p) ?: return null
+        val account = p.bankName?.let { b -> accounts.firstOrNull { it.name.contains(b, true) } }
+            ?: accounts.firstOrNull()
         val description = buildString {
-            append(parsed.merchantOrSender)
-            if (!parsed.accountOrCardMasked.isNullOrBlank()) {
-                append(" (${parsed.accountOrCardMasked})")
+            append(p.merchantOrSender)
+            p.accountOrCardMasked?.takeIf { it.isNotBlank() }?.let { append(" ($it)") }
+        }
+        val tags = buildList {
+            add("sms-import"); ref?.let { add("ref:$it") }; p.bankName?.let { add("bank:$it") }
+        }.joinToString(", ")
+
+        val entity = TransactionEntity(
+            amount = p.amount, type = p.type, categoryId = category.id, categoryName = category.name,
+            dateTime = p.dateTime, paymentMethod = p.paymentMethod, description = description, tags = tags,
+            sourceAccountId = account?.id, isCreditCardBillPayment = p.isCreditCardBillPayment,
+            isExcludedFromBudget = p.isCreditCardBillPayment || p.type == TransactionType.TRANSFER
+        )
+        val saved = entity.copy(id = dao.insertTransaction(entity))
+        existing.add(0, saved)
+        return saved
+    }
+
+    suspend fun importFromSmsInbox(context: Context, lookbackDays: Int = 30): Result<Int> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED)
+                    error("READ_SMS permission not granted.")
+                val db = ExpenseDatabase.getInstance(context)
+                val dao = db.transactionDao()
+                val categories = db.categoryDao().getAllCategoriesList()
+                val accounts = db.accountDao().getAllAccountsList()
+                val existing = dao.getAllTransactionsList().toMutableList()
+                val cutoff = System.currentTimeMillis() - lookbackDays * 86_400_000L
+                var imported = 0
+                context.contentResolver.query(
+                    Uri.parse("content://sms/inbox"), arrayOf("address", "body", "date"),
+                    "date >= ?", arrayOf(cutoff.toString()), "date ASC"
+                )?.use { c ->
+                    val a = c.getColumnIndexOrThrow("address"); val b = c.getColumnIndexOrThrow("body"); val d = c.getColumnIndexOrThrow("date")
+                    while (c.moveToNext()) {
+                        val parsed = SmsTransactionParser.parse(c.getString(a), c.getString(b) ?: "", c.getLong(d)) ?: continue
+                        if (saveIfUnique(dao, categories, accounts, parsed, existing) != null) imported++
+                    }
+                } ?: error("Cannot access SMS inbox.")
+                imported
             }
         }
 
-        val tagsList = mutableListOf("sms-import")
-        if (!parsed.referenceNumber.isNullOrBlank()) tagsList.add("ref:${parsed.referenceNumber}")
-        if (!parsed.bankName.isNullOrBlank()) tagsList.add("bank:${parsed.bankName}")
-
-        val transaction = TransactionEntity(
-            amount = parsed.amount,
-            type = parsed.type,
-            categoryId = matchingCategory.id,
-            categoryName = matchingCategory.name,
-            dateTime = parsed.dateTime,
-            paymentMethod = parsed.paymentMethod,
-            description = description,
-            tags = tagsList.joinToString(", "),
-            sourceAccountId = matchingAccount?.id,
-            isCreditCardBillPayment = parsed.isCreditCardBillPayment,
-            isExcludedFromBudget = parsed.isCreditCardBillPayment || parsed.type == TransactionType.TRANSFER
-        )
-
-        val id = transactionDao.insertTransaction(transaction)
-        Result.success(transaction.copy(id = id))
-    }
+    suspend fun importSingleSmsText(context: Context, rawSmsText: String, sender: String? = null): Result<TransactionEntity> =
+        withContext(Dispatchers.IO) {
+            val parsed = SmsTransactionParser.parse(sender, rawSmsText)
+                ?: return@withContext Result.failure(Exception("Could not extract a valid financial transaction. Make sure this is a bank/UPI debit or credit message, not an OTP or promo."))
+            val db = ExpenseDatabase.getInstance(context)
+            val saved = saveIfUnique(
+                db.transactionDao(), db.categoryDao().getAllCategoriesList(), db.accountDao().getAllAccountsList(),
+                parsed, db.transactionDao().getAllTransactionsList().toMutableList()
+            )
+            if (saved != null) Result.success(saved)
+            else Result.failure(Exception("Already recorded (same reference/amount/time) or no matching category."))
+        }
 }

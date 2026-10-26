@@ -50,7 +50,7 @@ fun TransactionItem(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, Color(0x14FFFFFF)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
@@ -81,7 +81,7 @@ fun TransactionItem(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = CategoryIconHelper.getIcon(transaction.categoryName),
+                    imageVector = CategoryIconHelper.forCategoryName(transaction.categoryName),
                     contentDescription = transaction.categoryName,
                     tint = iconTint,
                     modifier = Modifier.size(22.dp)

@@ -61,6 +61,9 @@ import com.expensetracker.app.ui.components.CategoryIconHelper
 import com.expensetracker.app.ui.components.ConfirmationDialog
 import com.expensetracker.app.ui.theme.ExpenseRed
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CategoryManagementScreen(
@@ -68,17 +71,7 @@ fun CategoryManagementScreen(
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-
-    var categoryNameToEdit by remember { mutableStateOf("") }
-    var selectedIconToEdit by remember { mutableStateOf("restaurant") }
-    var selectedColorToEdit by remember { mutableStateOf("#F97316") }
     var categoryToDelete by remember { mutableStateOf<CategoryEntity?>(null) }
-
-    val availableColors = listOf(
-        "#F97316", "#EA580C", "#B45309", "#3B82F6", "#6366F1",
-        "#EAB308", "#06B6D4", "#EC4899", "#EF4444", "#8B5CF6",
-        "#14B8A6", "#10B981", "#D97706", "#F43F5E", "#A855F7", "#64748B"
-    )
 
     categoryToDelete?.let { cat ->
         ConfirmationDialog(
@@ -93,114 +86,8 @@ fun CategoryManagementScreen(
         )
     }
 
-    if (uiState.isAddEditDialogOpen) {
-        val editing = uiState.editingCategory
-        val isEdit = editing != null
-        if (categoryNameToEdit.isEmpty() && isEdit) {
-            categoryNameToEdit = editing.name
-            selectedIconToEdit = editing.iconName
-            selectedColorToEdit = editing.colorHex
-        }
-
-        AlertDialog(
-            onDismissRequest = {
-                viewModel.closeDialog()
-                categoryNameToEdit = ""
-            },
-            title = { Text(if (isEdit) "Edit Category" else "Add Category") },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = categoryNameToEdit,
-                        onValueChange = { categoryNameToEdit = it },
-                        label = { Text("Category Name") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text("Select Icon", style = MaterialTheme.typography.labelMedium)
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        CategoryIconHelper.availableIcons.take(12).forEach { iconName ->
-                            val isSelected = selectedIconToEdit == iconName
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
-                                    .border(
-                                        width = if (isSelected) 2.dp else 0.dp,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                        shape = CircleShape
-                                    )
-                                    .clickable { selectedIconToEdit = iconName },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = CategoryIconHelper.getIcon(iconName),
-                                    contentDescription = iconName,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text("Select Color", style = MaterialTheme.typography.labelMedium)
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        availableColors.take(10).forEach { colorHex ->
-                            val color = try { Color(android.graphics.Color.parseColor(colorHex)) } catch (e: Exception) { Color.Gray }
-                            val isSelected = selectedColorToEdit.equals(colorHex, ignoreCase = true)
-                            Box(
-                                modifier = Modifier
-                                    .size(30.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
-                                    .border(
-                                        width = if (isSelected) 3.dp else 0.dp,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
-                                        shape = CircleShape
-                                    )
-                                    .clickable { selectedColorToEdit = colorHex }
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (categoryNameToEdit.isNotBlank()) {
-                            viewModel.saveCategory(categoryNameToEdit.trim(), selectedIconToEdit, selectedColorToEdit)
-                            categoryNameToEdit = ""
-                        }
-                    }
-                ) {
-                    Text("Save")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    viewModel.closeDialog()
-                    categoryNameToEdit = ""
-                }) { Text("Cancel") }
-            }
-        )
-    }
+    if (uiState.isAddEditDialogOpen)
+        CategoryEditDialog(uiState.editingCategory, uiState.error, viewModel::closeDialog, viewModel::saveCategory)
 
     Scaffold(
         topBar = {
@@ -250,7 +137,7 @@ fun CategoryManagementScreen(
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 88.dp)
             ) {
                 items(uiState.categories, key = { it.id }) { cat ->
                     val color = try { Color(android.graphics.Color.parseColor(cat.colorHex)) } catch (e: Exception) { MaterialTheme.colorScheme.primary }
@@ -311,4 +198,60 @@ fun CategoryManagementScreen(
             }
         }
     }
+}
+
+private val CategoryColors = listOf("#F97316", "#EA580C", "#B45309", "#3B82F6", "#6366F1", "#EAB308", "#06B6D4",
+    "#EC4899", "#EF4444", "#8B5CF6", "#14B8A6", "#10B981", "#D97706", "#F43F5E", "#A855F7", "#64748B")
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CategoryEditDialog(
+    editing: CategoryEntity?, error: String?,
+    onDismiss: () -> Unit, onSave: (name: String, icon: String, color: String) -> Unit
+) {
+    var name by remember(editing) { mutableStateOf(editing?.name ?: "") }
+    var icon by remember(editing) { mutableStateOf(editing?.iconName ?: CategoryIconHelper.availableIcons.first()) }
+    var color by remember(editing) { mutableStateOf(editing?.colorHex ?: CategoryColors.first()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (editing != null) "Edit Category" else "Add Category") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                OutlinedTextField(
+                    value = name, onValueChange = { name = it }, label = { Text("Category Name") }, singleLine = true,
+                    isError = error != null, supportingText = error?.let { { Text(it, color = ExpenseRed) } },
+                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)
+                )
+                Spacer(Modifier.height(14.dp)); Text("Select Icon", style = MaterialTheme.typography.labelMedium); Spacer(Modifier.height(6.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CategoryIconHelper.availableIcons.forEach { n ->
+                        val sel = icon == n
+                        Box(
+                            Modifier.size(36.dp).clip(CircleShape)
+                                .background(if (sel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
+                                .border(if (sel) 2.dp else 0.dp, if (sel) MaterialTheme.colorScheme.primary else Color.Transparent, CircleShape)
+                                .clickable { icon = n }, contentAlignment = Alignment.Center
+                        ) {
+                            Icon(CategoryIconHelper.getIcon(n), n, Modifier.size(18.dp),
+                                tint = if (sel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(14.dp)); Text("Select Color", style = MaterialTheme.typography.labelMedium); Spacer(Modifier.height(6.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CategoryColors.forEach { hex ->
+                        val sel = color.equals(hex, true)
+                        Box(
+                            Modifier.size(30.dp).clip(CircleShape).background(Color(android.graphics.Color.parseColor(hex)))
+                                .border(if (sel) 3.dp else 0.dp, if (sel) MaterialTheme.colorScheme.onSurface else Color.Transparent, CircleShape)
+                                .clickable { color = hex }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = { Button(onClick = { onSave(name, icon, color) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }

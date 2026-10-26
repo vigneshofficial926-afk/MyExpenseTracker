@@ -17,7 +17,8 @@ data class CategoryUiState(
     val selectedType: TransactionType = TransactionType.EXPENSE,
     val categories: List<CategoryEntity> = emptyList(),
     val isAddEditDialogOpen: Boolean = false,
-    val editingCategory: CategoryEntity? = null
+    val editingCategory: CategoryEntity? = null,
+    val error: String? = null
 )
 
 class CategoryViewModel(
@@ -27,61 +28,50 @@ class CategoryViewModel(
     private val _selectedType = MutableStateFlow(TransactionType.EXPENSE)
     private val _isAddEditDialogOpen = MutableStateFlow(false)
     private val _editingCategory = MutableStateFlow<CategoryEntity?>(null)
+    private val _error = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<CategoryUiState> = combine(
         repository.allCategories,
         _selectedType,
         _isAddEditDialogOpen,
-        _editingCategory
-    ) { categories, type, isDialog, editing ->
+        _editingCategory,
+        _error
+    ) { categories, type, isDialog, editing, error ->
         val filtered = categories.filter { it.type == type }
-        CategoryUiState(
-            selectedType = type,
-            categories = filtered,
-            isAddEditDialogOpen = isDialog,
-            editingCategory = editing
-        )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = CategoryUiState()
-    )
+        CategoryUiState(type, filtered, isDialog, editing, error)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CategoryUiState())
 
     fun selectType(type: TransactionType) { _selectedType.value = type }
 
     fun openAddDialog() {
         _editingCategory.value = null
+        _error.value = null
         _isAddEditDialogOpen.value = true
     }
 
     fun openEditDialog(category: CategoryEntity) {
         _editingCategory.value = category
+        _error.value = null
         _isAddEditDialogOpen.value = true
     }
 
-    fun closeDialog() {
-        _isAddEditDialogOpen.value = false
-        _editingCategory.value = null
-    }
+    fun closeDialog() { _isAddEditDialogOpen.value = false; _editingCategory.value = null; _error.value = null }
 
     fun saveCategory(name: String, iconName: String, colorHex: String) {
+        val clean = name.trim()
         val editing = _editingCategory.value
-        val type = _selectedType.value
+        val type = editing?.type ?: _selectedType.value
         viewModelScope.launch {
-            if (editing != null) {
-                repository.updateCategory(editing.copy(name = name, iconName = iconName, colorHex = colorHex))
-            } else {
-                repository.insertCategory(
-                    CategoryEntity(
-                        name = name,
-                        type = type,
-                        iconName = iconName,
-                        colorHex = colorHex,
-                        isDefault = false
-                    )
-                )
+            val dup = repository.getAllCategoriesSync().any { it.type == type && it.id != editing?.id && it.name.equals(clean, true) }
+            when {
+                clean.isEmpty() -> _error.value = "Name can't be empty."
+                dup -> _error.value = "A category named \"$clean\" already exists."
+                else -> {
+                    if (editing != null) repository.updateCategory(editing.copy(name = clean, iconName = iconName, colorHex = colorHex))
+                    else repository.insertCategory(CategoryEntity(name = clean, type = type, iconName = iconName, colorHex = colorHex))
+                    closeDialog()
+                }
             }
-            closeDialog()
         }
     }
 

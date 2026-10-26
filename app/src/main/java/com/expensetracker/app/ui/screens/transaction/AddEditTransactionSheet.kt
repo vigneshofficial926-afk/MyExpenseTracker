@@ -12,9 +12,11 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -105,18 +107,16 @@ fun AddEditTransactionSheet(
         )
     }
 
-    // Duplicate Entry Warning Dialog
+    // Duplicate Entry Warning Dialog & Generic Errors
     uiState.errorMessage?.let { error ->
         if (error.contains("identical details")) {
             ConfirmationDialog(
-                title = "Possible Duplicate",
-                message = error,
-                confirmButtonText = "Save Anyway",
+                title = "Possible Duplicate", message = error, confirmButtonText = "Save Anyway",
                 isDestructive = false,
-                onConfirm = { viewModel.forceSaveDuplicate() },
-                onDismiss = { }
+                onConfirm = { viewModel.saveTransaction(allowDuplicate = true) },
+                onDismiss = { viewModel.clearError() }
             )
-        }
+        } else LaunchedEffect(error) { snackbarHostState.showSnackbar(error); viewModel.clearError() }
     }
 
     Scaffold(
@@ -154,7 +154,7 @@ fun AddEditTransactionSheet(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding).consumeWindowInsets(innerPadding).imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {

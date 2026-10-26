@@ -11,14 +11,18 @@ import com.expensetracker.app.data.model.TransactionType
 import com.expensetracker.app.data.repository.ExpenseRepository
 import com.expensetracker.app.domain.FinancialCalculator
 import com.expensetracker.app.ui.components.ChartSlice
+import com.expensetracker.app.ui.components.toSlices
 import com.expensetracker.app.util.DateUtils
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
@@ -37,102 +41,60 @@ data class DashboardUiState(
     val isLoading: Boolean = false
 )
 
-class DashboardViewModel(
-    private val repository: ExpenseRepository
-) : ViewModel() {
+@OptIn(ExperimentalCoroutinesApi::class)
+class DashboardViewModel(private val repository: ExpenseRepository) : ViewModel() {
 
-    private val currentMonthYear = YearMonth.now().format(DateTimeFormatter.ofPattern("MM-yyyy"))
-    private val monthRange = DateUtils.getMonthStartAndEnd()
-    private val todayRange = DateUtils.getTodayStartAndEnd()
-    private val weekRange = DateUtils.getWeekStartAndEnd()
-
-    private val categoryColors = listOf(
-        Color(0xFFF97316), Color(0xFF3B82F6), Color(0xFF10B981),
-        Color(0xFF8B5CF6), Color(0xFFEC4899), Color(0xFFEAB308),
-        Color(0xFF06B6D4), Color(0xFFEF4444), Color(0xFF14B8A6)
+    private val keyFmt = DateTimeFormatter.ofPattern("MM-yyyy")
+    private val palette = listOf(
+        Color(0xFFF97316), Color(0xFF3B82F6), Color(0xFF10B981), Color(0xFF8B5CF6),
+        Color(0xFFEC4899), Color(0xFFEAB308), Color(0xFF06B6D4), Color(0xFFEF4444), Color(0xFF14B8A6)
     )
 
-    val uiState: StateFlow<DashboardUiState> = combine(
-        repository.allTransactions,
-        repository.allAccounts,
-        repository.getBudgetsForMonth(currentMonthYear)
-    ) { transactions, accounts, budgets ->
-        // Total balance
-        val balance = FinancialCalculator.calculateTotalBalance(accounts, transactions)
+    val uiState: StateFlow<DashboardUiState> = DateUtils.todayFlow().flatMapLatest { today ->
+        combine(
+            repository.allTransactions, repository.allAccounts,
+            repository.getBudgetsForMonth(YearMonth.from(today).format(keyFmt))
+        ) { txs, accounts, budgets -> compute(today, txs, accounts, budgets) }
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardUiState())
 
-        // Month transactions
-        val monthTransactions = transactions.filter {
-            it.dateTime in monthRange.first..monthRange.second
-        }
-        val monthIncome = FinancialCalculator.calculateMonthlyIncome(monthTransactions)
-        val monthExpense = FinancialCalculator.calculateMonthlyExpenses(monthTransactions)
+    private fun compute(today: LocalDate, txs: List<TransactionEntity>, accounts: List<AccountEntity>, budgets: List<BudgetEntity>): DashboardUiState {
+        val (ms, me) = DateUtils.getMonthStartAndEnd(YearMonth.from(today))
+        val (ds, de) = DateUtils.getTodayStartAndEnd(today)
+        val (ws, we) = DateUtils.getWeekStartAndEnd(today = today)
 
-        // Today & week expenses
-        val todayExpense = monthTransactions
-            .filter { it.dateTime in todayRange.first..todayRange.second && it.type == TransactionType.EXPENSE && !it.isCreditCardBillPayment }
-            .sumOf { it.amount }
+        val monthTxs = txs.filter { it.dateTime in ms..me }
+        val monthExpense = FinancialCalculator.calculateMonthlyExpenses(monthTxs)
+        // week/today come from ALL transactions (a week can straddle two months) and net out refunds like the month does
+        val todayExpense = FinancialCalculator.calculateMonthlyExpenses(txs.filter { it.dateTime in ds..de })
+        val weekExpense = FinancialCalculator.calculateMonthlyExpenses(txs.filter { it.dateTime in ws..we })
 
-        val weekExpense = monthTransactions
-            .filter { it.dateTime in weekRange.first..weekRange.second && it.type == TransactionType.EXPENSE && !it.isCreditCardBillPayment }
-            .sumOf { it.amount }
-
-        // Budget
-        val overallBudget = budgets.find { it.categoryId == null }?.budgetAmount ?: 0.0
-        val remainingBudget = if (overallBudget > 0.0) FinancialCalculator.calculateBudgetRemaining(overallBudget, monthExpense) else 0.0
-        val budgetUtil = FinancialCalculator.calculateBudgetUtilization(overallBudget, monthExpense)
-
-        val budgetAlert = when {
-            overallBudget > 0.0 && budgetUtil >= 100f -> "Warning: You have reached 100% of your monthly budget!"
-            overallBudget > 0.0 && budgetUtil >= 80f -> "Heads up: You have utilized ${String.format("%.0f", budgetUtil)}% of your monthly budget."
+        val budget = budgets.firstOrNull { it.categoryId == null }?.budgetAmount ?: 0.0
+        val util = FinancialCalculator.calculateBudgetUtilization(budget, monthExpense)
+        val alert = when {
+            budget > 0 && util >= 100f -> "Warning: You have reached 100% of your monthly budget!"
+            budget > 0 && util >= 80f -> "Heads up: You have utilized ${"%.0f".format(util)}% of your monthly budget."
             else -> null
         }
+        val slices = monthTxs.filter { it.type == TransactionType.EXPENSE && !it.isCreditCardBillPayment }
+            .groupBy { it.categoryName }.mapValues { e -> e.value.sumOf { it.amount } }
+            .toList().sortedByDescending { it.second }.toSlices(palette)
 
-        // Category breakdown for current month expenses
-        val expenseByCategory = monthTransactions
-            .filter { it.type == TransactionType.EXPENSE && !it.isCreditCardBillPayment }
-            .groupBy { it.categoryName }
-            .mapValues { entry -> entry.value.sumOf { it.amount } }
-            .toList()
-            .sortedByDescending { it.second }
-
-        val slices = expenseByCategory.mapIndexed { idx, (catName, amount) ->
-            ChartSlice(
-                label = catName,
-                value = amount,
-                color = categoryColors[idx % categoryColors.size]
-            )
-        }
-
-        DashboardUiState(
-            totalBalance = balance,
-            monthIncome = monthIncome,
-            monthExpense = monthExpense,
-            monthlyBudget = overallBudget,
-            remainingBudget = remainingBudget,
-            budgetUtilization = budgetUtil,
-            budgetAlertMessage = budgetAlert,
-            todayExpense = todayExpense,
-            thisWeekExpense = weekExpense,
-            recentTransactions = transactions.take(6),
-            categoryBreakdown = slices
+        return DashboardUiState(
+            totalBalance = FinancialCalculator.calculateTotalBalance(accounts, txs),
+            monthIncome = FinancialCalculator.calculateMonthlyIncome(monthTxs),
+            monthExpense = monthExpense, monthlyBudget = budget,
+            remainingBudget = if (budget > 0) FinancialCalculator.calculateBudgetRemaining(budget, monthExpense) else 0.0,
+            budgetUtilization = util, budgetAlertMessage = alert,
+            todayExpense = todayExpense, thisWeekExpense = weekExpense,
+            recentTransactions = txs.take(6), categoryBreakdown = slices
         )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.Lazily,
-        initialValue = DashboardUiState(isLoading = false)
-    )
-
-    init {
-        // Trigger auto-processing of recurring transactions on startup
-        viewModelScope.launch {
-            repository.processDueRecurringTransactions()
-        }
     }
+
+    init { viewModelScope.launch { repository.processDueRecurringTransactions() } }
 
     class Factory(private val repository: ExpenseRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return DashboardViewModel(repository) as T
-        }
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = DashboardViewModel(repository) as T
     }
 }

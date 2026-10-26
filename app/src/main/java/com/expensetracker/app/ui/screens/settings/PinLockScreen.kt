@@ -3,30 +3,14 @@ package com.expensetracker.app.ui.screens.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,146 +22,73 @@ import com.expensetracker.app.ui.theme.ExpenseRed
 
 @Composable
 fun PinLockScreen(
-    correctPin: String,
-    onPinSuccess: () -> Unit
+    verifyPin: (String) -> Boolean,
+    onPinSuccess: () -> Unit,
+    onBiometricClick: (() -> Unit)? = null
 ) {
-    var enteredPin by remember { mutableStateOf("") }
-    var isError by remember { mutableStateOf(false) }
+    var entered by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf<String?>(null) }
+    var failures by remember { mutableIntStateOf(0) }
+    var blockedUntil by remember { mutableLongStateOf(0L) }
+    val isError = message != null
+    val accent = if (isError) ExpenseRed else MaterialTheme.colorScheme.primary
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
+    fun press(key: String) {
+        if (System.currentTimeMillis() < blockedUntil || entered.length >= 4) return
+        message = null
+        entered += key
+        if (entered.length == 4) {
+            if (verifyPin(entered)) onPinSuccess() else {
+                failures++
+                entered = ""
+                message = if (failures % 5 == 0) {
+                    blockedUntil = System.currentTimeMillis() + 30_000L
+                    "Too many attempts. Try again in 30 seconds."
+                } else "Incorrect PIN, please try again"
+            }
+        }
+    }
+
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            Modifier.fillMaxSize().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
         ) {
             Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                Modifier.size(64.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Lock,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
+            ) { Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp)) }
+            Spacer(Modifier.height(20.dp))
+            Text("Enter Security PIN", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
             Text(
-                text = "Enter Security PIN",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = if (isError) "Incorrect PIN, please try again" else "Unlock your expense tracker",
-                style = MaterialTheme.typography.bodyMedium,
+                message ?: "Unlock your expense tracker", style = MaterialTheme.typography.bodyMedium,
                 color = if (isError) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // PIN Dots (4 dots)
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                for (i in 0 until 4) {
-                    val isFilled = i < enteredPin.length
+            Spacer(Modifier.height(32.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                repeat(4) { i ->
                     Box(
-                        modifier = Modifier
-                            .size(18.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isFilled) {
-                                    if (isError) ExpenseRed else MaterialTheme.colorScheme.primary
-                                } else Color.Transparent
-                            )
-                            .border(
-                                width = 2.dp,
-                                color = if (isError) ExpenseRed else MaterialTheme.colorScheme.primary,
-                                shape = CircleShape
-                            )
+                        Modifier.size(18.dp).clip(CircleShape)
+                            .background(if (i < entered.length) accent else Color.Transparent)
+                            .border(2.dp, accent, CircleShape)
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            // Numpad Grid
-            val numpad = listOf(
-                listOf("1", "2", "3"),
-                listOf("4", "5", "6"),
-                listOf("7", "8", "9"),
-                listOf("", "0", "DEL")
-            )
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                numpad.forEach { row ->
+            Spacer(Modifier.height(48.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("bio", "0", "del")).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         row.forEach { key ->
-                            if (key.isEmpty()) {
-                                Spacer(modifier = Modifier.size(72.dp))
-                            } else if (key == "DEL") {
-                                Box(
-                                    modifier = Modifier
-                                        .size(72.dp)
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            if (enteredPin.isNotEmpty()) {
-                                                enteredPin = enteredPin.dropLast(1)
-                                                isError = false
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Backspace,
-                                        contentDescription = "Delete",
-                                        tint = MaterialTheme.colorScheme.onSurface
-                                    )
+                            when (key) {
+                                "bio" -> if (onBiometricClick != null)
+                                    KeyCell(onClick = onBiometricClick) { Icon(Icons.Default.Fingerprint, "Use biometrics", tint = MaterialTheme.colorScheme.primary) }
+                                else Spacer(Modifier.size(72.dp))
+                                "del" -> KeyCell(onClick = { if (entered.isNotEmpty()) { entered = entered.dropLast(1); message = null } }) {
+                                    Icon(Icons.Default.Backspace, "Delete", tint = MaterialTheme.colorScheme.onSurface)
                                 }
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .size(72.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                        .clickable {
-                                            if (enteredPin.length < 4) {
-                                                val newPin = enteredPin + key
-                                                enteredPin = newPin
-                                                isError = false
-                                                if (newPin.length == 4) {
-                                                    if (newPin == correctPin) {
-                                                        onPinSuccess()
-                                                    } else {
-                                                        isError = true
-                                                        enteredPin = ""
-                                                    }
-                                                }
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = key,
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 24.sp
-                                    )
+                                else -> KeyCell(filled = true, onClick = { press(key) }) {
+                                    Text(key, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, fontSize = 24.sp)
                                 }
                             }
                         }
@@ -186,4 +97,14 @@ fun PinLockScreen(
             }
         }
     }
+}
+
+@Composable
+private fun KeyCell(filled: Boolean = false, onClick: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        Modifier.size(72.dp).clip(CircleShape)
+            .background(if (filled) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else Color.Transparent)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) { content() }
 }

@@ -1322,4 +1322,29 @@ select.input-field option {
   to { transform: rotate(360deg); }
 }
 
+.chip-btn{background:var(--surface-variant);color:var(--text-primary);border:1px solid var(--border-color);
+  border-radius:var(--radius-full);padding:6px 12px;font:600 12px var(--font-family);cursor:pointer;
+  transition:background .15s,transform .1s}
+.chip-btn:hover{border-color:var(--primary)} .chip-btn:active{transform:scale(.96)}
+
+.btn-danger {
+  width: 100%;
+  padding: 13px 20px;
+  background: rgba(244, 63, 94, 0.14);
+  color: #F43F5E;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.2s, opacity 0.2s;
+}
+.btn-danger:hover {
+  background: rgba(244, 63, 94, 0.25);
+}
+
 

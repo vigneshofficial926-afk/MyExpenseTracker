@@ -18,15 +18,18 @@ import java.io.File
 import java.io.FileReader
 import java.io.FileWriter
 
+import android.net.Uri
+import androidx.room.withTransaction
+
 data class AppBackupData(
     val exportDate: String,
     val appVersion: String = "1.0.0",
-    val transactions: List<TransactionEntity>,
-    val categories: List<CategoryEntity>,
-    val budgets: List<BudgetEntity>,
-    val accounts: List<AccountEntity>,
-    val recurring: List<RecurringTransactionEntity>,
-    val savingsGoals: List<SavingsGoalEntity>
+    val transactions: List<TransactionEntity>?,
+    val categories: List<CategoryEntity>?,
+    val budgets: List<BudgetEntity>?,
+    val accounts: List<AccountEntity>?,
+    val recurring: List<RecurringTransactionEntity>?,
+    val savingsGoals: List<SavingsGoalEntity>?
 )
 
 object BackupRestoreHelper {
@@ -34,16 +37,17 @@ object BackupRestoreHelper {
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
     suspend fun createBackupJson(database: ExpenseDatabase): String = withContext(Dispatchers.IO) {
-        val backup = AppBackupData(
-            exportDate = DateUtils.formatDateTime(System.currentTimeMillis()),
-            transactions = database.transactionDao().getAllTransactionsList(),
-            categories = database.categoryDao().getAllCategoriesList(),
-            budgets = database.budgetDao().getBudgetsForMonthSync(""),
-            accounts = database.accountDao().getAllAccountsList(),
-            recurring = database.recurringTransactionDao().getDueRecurringSync(Long.MAX_VALUE),
-            savingsGoals = database.savingsGoalDao().getAllGoalsList()
+        gson.toJson(
+            AppBackupData(
+                exportDate = DateUtils.formatDateTime(System.currentTimeMillis()),
+                transactions = database.transactionDao().getAllTransactionsList(),
+                categories = database.categoryDao().getAllCategoriesList(),
+                budgets = database.budgetDao().getAllBudgetsList(),
+                accounts = database.accountDao().getAllAccountsList(),
+                recurring = database.recurringTransactionDao().getAllRecurringList(),
+                savingsGoals = database.savingsGoalDao().getAllGoalsList()
+            )
         )
-        gson.toJson(backup)
     }
 
     suspend fun exportAndShareBackup(context: Context, database: ExpenseDatabase) {
@@ -74,37 +78,31 @@ object BackupRestoreHelper {
         context.startActivity(chooser)
     }
 
-    suspend fun restoreBackupFromJson(database: ExpenseDatabase, jsonString: String): Boolean = withContext(Dispatchers.IO) {
-        return@withContext try {
-            val backup = gson.fromJson(jsonString, AppBackupData::class.java)
-            if (backup != null) {
-                if (backup.categories.isNotEmpty()) {
-                    database.categoryDao().insertAll(backup.categories)
+    /** Replaces ALL data atomically; on any error nothing changes. */
+    suspend fun restoreBackup(context: Context, database: ExpenseDatabase, uri: Uri): Result<Int> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    ?: error("Cannot open file")
+                val b = gson.fromJson(json, AppBackupData::class.java) ?: error("Invalid backup file")
+                if (b.categories.orEmpty().isEmpty()) error("This does not look like a valid backup.")
+                database.withTransaction {
+                    database.transactionDao().deleteAllTransactions()
+                    database.budgetDao().deleteAllBudgets()
+                    database.recurringTransactionDao().deleteAllRecurring()
+                    database.savingsGoalDao().deleteAllGoals()
+                    database.categoryDao().deleteAllCategories()
+                    database.accountDao().deleteAllAccounts()
+                    database.categoryDao().insertAll(b.categories.orEmpty())
+                    database.accountDao().insertAll(b.accounts.orEmpty())
+                    database.budgetDao().insertAll(b.budgets.orEmpty())
+                    database.transactionDao().insertAll(b.transactions.orEmpty())
+                    database.recurringTransactionDao().insertAll(b.recurring.orEmpty())
+                    database.savingsGoalDao().insertAll(b.savingsGoals.orEmpty())
                 }
-                if (backup.accounts.isNotEmpty()) {
-                    database.accountDao().insertAll(backup.accounts)
-                }
-                if (backup.budgets.isNotEmpty()) {
-                    database.budgetDao().insertAll(backup.budgets)
-                }
-                if (backup.transactions.isNotEmpty()) {
-                    database.transactionDao().insertAll(backup.transactions)
-                }
-                if (backup.recurring.isNotEmpty()) {
-                    database.recurringTransactionDao().insertAll(backup.recurring)
-                }
-                if (backup.savingsGoals.isNotEmpty()) {
-                    database.savingsGoalDao().insertAll(backup.savingsGoals)
-                }
-                true
-            } else {
-                false
+                b.transactions.orEmpty().size
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
         }
-    }
 
     fun shareTextReport(context: Context, reportContent: String, title: String = "Monthly Expense Report") {
         val intent = Intent(Intent.ACTION_SEND).apply {

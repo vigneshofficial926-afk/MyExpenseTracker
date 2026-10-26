@@ -11,6 +11,7 @@ import com.expensetracker.app.data.local.entity.TransactionEntity
 import com.expensetracker.app.data.model.RecurrenceFrequency
 import com.expensetracker.app.data.model.TransactionType
 import com.expensetracker.app.domain.FinancialCalculator
+import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -47,25 +48,19 @@ class ExpenseRepository(
     fun getTransactionById(id: Long): Flow<TransactionEntity?> =
         transactionDao.getTransactionById(id)
 
-    suspend fun insertTransaction(transaction: TransactionEntity, allowDuplicate: Boolean = false): Result<Long> {
-        return withContext(Dispatchers.IO) {
+    suspend fun insertTransaction(transaction: TransactionEntity, allowDuplicate: Boolean = false): Result<Long> =
+        withContext(Dispatchers.IO) {
             if (!allowDuplicate) {
-                val recentTransactions = transactionDao.getRecentTransactions(20)
-                // Get sync list for quick duplicate check
-                val isDup = FinancialCalculator.isDuplicateTransaction(
-                    transaction,
-                    transactionDao.getAllTransactionsList().take(30)
+                val w = 60_000L
+                val near = transactionDao.findPotentialDuplicates(
+                    transaction.amount, transaction.type, transaction.categoryId,
+                    transaction.dateTime - w, transaction.dateTime + w
                 )
-                if (isDup) {
-                    return@withContext Result.failure(
-                        Exception("A transaction with identical details was recorded less than a minute ago. Tap again to confirm.")
-                    )
-                }
+                if (FinancialCalculator.isDuplicateTransaction(transaction, near))
+                    return@withContext Result.failure(Exception("A transaction with identical details was recorded less than a minute ago. Save anyway?"))
             }
-            val id = transactionDao.insertTransaction(transaction)
-            Result.success(id)
+            Result.success(transactionDao.insertTransaction(transaction))
         }
-    }
 
     suspend fun updateTransaction(transaction: TransactionEntity) {
         withContext(Dispatchers.IO) {
@@ -94,8 +89,13 @@ class ExpenseRepository(
     suspend fun insertCategory(category: CategoryEntity): Long =
         withContext(Dispatchers.IO) { categoryDao.insertCategory(category) }
 
-    suspend fun updateCategory(category: CategoryEntity) =
-        withContext(Dispatchers.IO) { categoryDao.updateCategory(category) }
+    suspend fun updateCategory(category: CategoryEntity) = withContext(Dispatchers.IO) {
+        database.withTransaction {
+            categoryDao.updateCategory(category)
+            transactionDao.renameCategory(category.id, category.name)
+            recurringDao.renameCategory(category.id, category.name)
+        }
+    }
 
     suspend fun deleteCategory(category: CategoryEntity) =
         withContext(Dispatchers.IO) { categoryDao.deleteCategory(category) }
@@ -159,45 +159,40 @@ class ExpenseRepository(
      */
     suspend fun processDueRecurringTransactions(): Int = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        val dueRules = recurringDao.getDueRecurringSync(now)
-        var createdCount = 0
-
-        for (rule in dueRules) {
-            // Avoid duplicate processing
-            val newTx = TransactionEntity(
-                amount = rule.amount,
-                type = rule.type,
-                categoryId = rule.categoryId,
-                categoryName = rule.categoryName,
-                dateTime = rule.nextDueDate,
-                paymentMethod = rule.paymentMethod,
-                description = "[Recurring] ${rule.title}" + if (rule.description.isNotBlank()) " - ${rule.description}" else "",
-                tags = "recurring",
-                recurringRuleId = rule.id
-            )
-            transactionDao.insertTransaction(newTx)
-            createdCount++
-
-            // Calculate next due date
-            val nextDate = calculateNextDueDate(rule.nextDueDate, rule.frequency)
-            val updatedRule = rule.copy(
-                lastProcessedDate = rule.nextDueDate,
-                nextDueDate = nextDate
-            )
-            recurringDao.updateRecurring(updatedRule)
+        val zone = ZoneId.systemDefault()
+        var created = 0
+        database.withTransaction {
+            for (rule in recurringDao.getDueRecurringSync(now)) {
+                val anchorDay = Instant.ofEpochMilli(rule.startDate).atZone(zone).dayOfMonth
+                var due = rule.nextDueDate
+                var last: Long? = null
+                var guard = 0
+                while (due <= now && guard++ < 366) {          // catch up every missed period
+                    transactionDao.insertTransaction(
+                        TransactionEntity(
+                            amount = rule.amount, type = rule.type, categoryId = rule.categoryId,
+                            categoryName = rule.categoryName, dateTime = due, paymentMethod = rule.paymentMethod,
+                            description = "[Recurring] ${rule.title}" + if (rule.description.isNotBlank()) " - ${rule.description}" else "",
+                            tags = "recurring", recurringRuleId = rule.id
+                        )
+                    )
+                    created++; last = due
+                    due = nextDueDate(due, rule.frequency, anchorDay, zone)
+                }
+                recurringDao.updateRecurring(rule.copy(lastProcessedDate = last ?: rule.lastProcessedDate, nextDueDate = due))
+            }
         }
-        createdCount
+        created
     }
 
-    private fun calculateNextDueDate(currentDueDateMillis: Long, frequency: RecurrenceFrequency): Long {
-        val zone = ZoneId.systemDefault()
-        val currentLocalDate = Instant.ofEpochMilli(currentDueDateMillis).atZone(zone).toLocalDate()
-        val nextLocalDate = when (frequency) {
-            RecurrenceFrequency.DAILY -> currentLocalDate.plusDays(1)
-            RecurrenceFrequency.WEEKLY -> currentLocalDate.plusWeeks(1)
-            RecurrenceFrequency.MONTHLY -> currentLocalDate.plusMonths(1)
+    private fun nextDueDate(current: Long, f: RecurrenceFrequency, anchorDay: Int, zone: ZoneId): Long {
+        val d = Instant.ofEpochMilli(current).atZone(zone).toLocalDate()
+        val next = when (f) {
+            RecurrenceFrequency.DAILY -> d.plusDays(1)
+            RecurrenceFrequency.WEEKLY -> d.plusWeeks(1)
+            RecurrenceFrequency.MONTHLY -> d.plusMonths(1).withDayOfMonth(1).let { it.withDayOfMonth(minOf(anchorDay, it.lengthOfMonth())) }
         }
-        return nextLocalDate.atStartOfDay(zone).toInstant().toEpochMilli()
+        return next.atStartOfDay(zone).toInstant().toEpochMilli()
     }
 
     // --- Savings Goals ---

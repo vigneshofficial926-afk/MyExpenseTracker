@@ -44,6 +44,13 @@ data class ChartSlice(
     val color: Color
 )
 
+fun List<Pair<String, Double>>.toSlices(palette: List<Color>, maxSlices: Int = 5): List<ChartSlice> {
+    val top = take(maxSlices)
+    val rest = drop(maxSlices).sumOf { it.second }
+    return (if (rest > 0) top + ("Others" to rest) else top)
+        .mapIndexed { i, (n, v) -> ChartSlice(n, v, palette[i % palette.size]) }
+}
+
 @Composable
 fun DonutPieChart(
     slices: List<ChartSlice>,
@@ -68,6 +75,8 @@ fun DonutPieChart(
             Canvas(modifier = Modifier.size(170.dp)) {
                 var startAngle = -90f
                 val strokeWidth = 32.dp.toPx()
+                val arcTopLeft = Offset(strokeWidth / 2, strokeWidth / 2)
+                val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
 
                 if (slices.isEmpty() || totalAmount == 0.0) {
                     drawArc(
@@ -75,6 +84,8 @@ fun DonutPieChart(
                         startAngle = 0f,
                         sweepAngle = 360f,
                         useCenter = false,
+                        topLeft = arcTopLeft,
+                        size = arcSize,
                         style = Stroke(width = strokeWidth)
                     )
                 } else {
@@ -85,7 +96,9 @@ fun DonutPieChart(
                             startAngle = startAngle,
                             sweepAngle = sweepAngle,
                             useCenter = false,
-                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                            topLeft = arcTopLeft,
+                            size = arcSize,
+                            style = Stroke(width = strokeWidth)
                         )
                         startAngle += sweepAngle
                     }
@@ -189,7 +202,8 @@ fun WeeklyBarChart(
                             text = CurrencyFormatter.formatCompact(value),
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
+                            maxLines = 1,
+                            softWrap = false
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                     }

@@ -11,11 +11,15 @@ import com.expensetracker.app.data.model.TransactionType
 import com.expensetracker.app.data.repository.ExpenseRepository
 import com.expensetracker.app.domain.FinancialCalculator
 import com.expensetracker.app.ui.components.ChartSlice
+import com.expensetracker.app.ui.components.toSlices
 import com.expensetracker.app.util.DateUtils
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import java.time.DayOfWeek
 import java.time.Instant
@@ -44,6 +48,7 @@ data class ReportsUiState(
     val currentBudget: Double = 0.0
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ReportsViewModel(
     private val repository: ExpenseRepository
 ) : ViewModel() {
@@ -55,103 +60,104 @@ class ReportsViewModel(
         Color(0xFFD97706), Color(0xFF6366F1), Color(0xFFA855F7)
     )
 
-    private val currentMonth = YearMonth.now()
+    val uiState: StateFlow<ReportsUiState> = DateUtils.todayFlow().flatMapLatest { today ->
+        val currentMonth = YearMonth.from(today)
+        combine(
+            repository.allTransactions,
+            repository.getBudgetsForMonth(currentMonth.format(DateTimeFormatter.ofPattern("MM-yyyy")))
+        ) { transactions, budgets ->
+            val zone = ZoneId.systemDefault()
 
-    val uiState: StateFlow<ReportsUiState> = combine(
-        repository.allTransactions,
-        repository.getBudgetsForMonth(currentMonth.format(DateTimeFormatter.ofPattern("MM-yyyy")))
-    ) { transactions, budgets ->
-        val zone = ZoneId.systemDefault()
-        val today = LocalDate.now()
+            // 1. Current Month & Previous Month
+            val (monthStart, monthEnd) = DateUtils.getMonthStartAndEnd(currentMonth)
+            val prevMonth = currentMonth.minusMonths(1)
+            val (prevMonthStart, prevMonthEnd) = DateUtils.getMonthStartAndEnd(prevMonth)
 
-        // 1. Current Month & Previous Month
-        val (monthStart, monthEnd) = DateUtils.getMonthStartAndEnd(currentMonth)
-        val prevMonth = currentMonth.minusMonths(1)
-        val (prevMonthStart, prevMonthEnd) = DateUtils.getMonthStartAndEnd(prevMonth)
+            val currentMonthTxs = transactions.filter { it.dateTime in monthStart..monthEnd }
+            val prevMonthTxs = transactions.filter { it.dateTime in prevMonthStart..prevMonthEnd }
 
-        val currentMonthTxs = transactions.filter { it.dateTime in monthStart..monthEnd }
-        val prevMonthTxs = transactions.filter { it.dateTime in prevMonthStart..prevMonthEnd }
+            val curIncome = FinancialCalculator.calculateMonthlyIncome(currentMonthTxs)
+            val curExpense = FinancialCalculator.calculateMonthlyExpenses(currentMonthTxs)
+            val prevExpense = FinancialCalculator.calculateMonthlyExpenses(prevMonthTxs)
 
-        val curIncome = FinancialCalculator.calculateMonthlyIncome(currentMonthTxs)
-        val curExpense = FinancialCalculator.calculateMonthlyExpenses(currentMonthTxs)
-        val prevExpense = FinancialCalculator.calculateMonthlyExpenses(prevMonthTxs)
+            val netSavings = curIncome - curExpense
+            val expenseChangePct = if (prevExpense > 0.0) {
+                ((curExpense - prevExpense) / prevExpense) * 100.0
+            } else 0.0
 
-        val netSavings = curIncome - curExpense
-        val expenseChangePct = if (prevExpense > 0.0) {
-            ((curExpense - prevExpense) / prevExpense) * 100.0
-        } else 0.0
+            // 2. Weekly Daily Expenses
+            val first = DateUtils.firstDayOfWeek
+            val startOfWeek = today.with(TemporalAdjusters.previousOrSame(first))
+            val weekExpensesList = (0..6).map { dayOffset ->
+                val dayDate = startOfWeek.plusDays(dayOffset.toLong())
+                val dayStart = dayDate.atStartOfDay(zone).toInstant().toEpochMilli()
+                val dayEnd = dayDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
 
-        // 2. Weekly Daily Expenses (Mon to Sun)
-        val startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-        val weekExpensesList = (0..6).map { dayOffset ->
-            val dayDate = startOfWeek.plusDays(dayOffset.toLong())
-            val dayStart = dayDate.atStartOfDay(zone).toInstant().toEpochMilli()
-            val dayEnd = dayDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
+                transactions.filter {
+                    it.dateTime in dayStart..dayEnd &&
+                    it.type == TransactionType.EXPENSE &&
+                    !it.isCreditCardBillPayment
+                }.sumOf { it.amount }
+            }
+            val labels = (0..6).map { first.plus(it.toLong()).getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH) }
+            val currentDayIndex = (today.dayOfWeek.value - first.value + 7) % 7
 
-            transactions.filter {
-                it.dateTime in dayStart..dayEnd &&
-                it.type == TransactionType.EXPENSE &&
-                !it.isCreditCardBillPayment
-            }.sumOf { it.amount }
+            // 3. Annual Monthly Expenses (Jan to Dec of current year)
+            val annualExpensesList = (1..12).map { monthNum ->
+                val ym = YearMonth.of(today.year, monthNum)
+                val (s, e) = DateUtils.getMonthStartAndEnd(ym)
+                transactions.filter {
+                    it.dateTime in s..e &&
+                    it.type == TransactionType.EXPENSE &&
+                    !it.isCreditCardBillPayment
+                }.sumOf { it.amount }
+            }
+
+            // 4. Category-Wise Spending
+            val catMap = currentMonthTxs
+                .filter { it.type == TransactionType.EXPENSE && !it.isCreditCardBillPayment }
+                .groupBy { it.categoryName }
+                .mapValues { it.value.sumOf { tx -> tx.amount } }
+                .toList()
+                .sortedByDescending { it.second }
+
+            val categorySlices = catMap.toSlices(colors)
+
+            // 5. Payment-Method-Wise Spending
+            val pmMap = currentMonthTxs
+                .filter { it.type == TransactionType.EXPENSE && !it.isCreditCardBillPayment }
+                .groupBy { it.paymentMethod.displayName }
+                .mapValues { it.value.sumOf { tx -> tx.amount } }
+                .toList()
+                .sortedByDescending { it.second }
+
+            val pmSlices = pmMap.mapIndexed { index, (method, amt) ->
+                ChartSlice(method, amt, colors[(index + 3) % colors.size])
+            }
+
+            // 6. Overall Budget
+            val overallBudget = budgets.find { it.categoryId == null }?.budgetAmount ?: 0.0
+
+            ReportsUiState(
+                currentMonthYear = currentMonth,
+                totalIncome = curIncome,
+                totalExpense = curExpense,
+                netSavings = netSavings,
+                previousMonthExpense = prevExpense,
+                monthExpenseChangePercent = expenseChangePct,
+                weeklyDays = labels,
+                weeklyExpenses = weekExpensesList,
+                todayDayIndex = currentDayIndex,
+                annualExpenses = annualExpensesList,
+                categorySlices = categorySlices,
+                paymentMethodSlices = pmSlices,
+                highestSpendingCategories = catMap.take(5),
+                currentBudget = overallBudget
+            )
         }
-        val currentDayIndex = today.dayOfWeek.value - 1 // 0 for Mon, 6 for Sun
-
-        // 3. Annual Monthly Expenses (Jan to Dec of current year)
-        val annualExpensesList = (1..12).map { monthNum ->
-            val ym = YearMonth.of(today.year, monthNum)
-            val (s, e) = DateUtils.getMonthStartAndEnd(ym)
-            transactions.filter {
-                it.dateTime in s..e &&
-                it.type == TransactionType.EXPENSE &&
-                !it.isCreditCardBillPayment
-            }.sumOf { it.amount }
-        }
-
-        // 4. Category-Wise Spending
-        val catMap = currentMonthTxs
-            .filter { it.type == TransactionType.EXPENSE && !it.isCreditCardBillPayment }
-            .groupBy { it.categoryName }
-            .mapValues { it.value.sumOf { tx -> tx.amount } }
-            .toList()
-            .sortedByDescending { it.second }
-
-        val categorySlices = catMap.mapIndexed { index, (cat, amt) ->
-            ChartSlice(cat, amt, colors[index % colors.size])
-        }
-
-        // 5. Payment-Method-Wise Spending
-        val pmMap = currentMonthTxs
-            .filter { it.type == TransactionType.EXPENSE && !it.isCreditCardBillPayment }
-            .groupBy { it.paymentMethod.displayName }
-            .mapValues { it.value.sumOf { tx -> tx.amount } }
-            .toList()
-            .sortedByDescending { it.second }
-
-        val pmSlices = pmMap.mapIndexed { index, (method, amt) ->
-            ChartSlice(method, amt, colors[(index + 3) % colors.size])
-        }
-
-        // 6. Overall Budget
-        val overallBudget = budgets.find { it.categoryId == null }?.budgetAmount ?: 0.0
-
-        ReportsUiState(
-            currentMonthYear = currentMonth,
-            totalIncome = curIncome,
-            totalExpense = curExpense,
-            netSavings = netSavings,
-            previousMonthExpense = prevExpense,
-            monthExpenseChangePercent = expenseChangePct,
-            weeklyExpenses = weekExpensesList,
-            todayDayIndex = currentDayIndex,
-            annualExpenses = annualExpensesList,
-            categorySlices = categorySlices,
-            paymentMethodSlices = pmSlices,
-            highestSpendingCategories = catMap.take(5),
-            currentBudget = overallBudget
-        )
-    }.stateIn(
+    }.flowOn(Dispatchers.Default).stateIn(
         scope = viewModelScope,
-        started = SharingStarted.Lazily,
+        started = SharingStarted.WhileSubscribed(5000),
         initialValue = ReportsUiState()
     )
 

@@ -71,6 +71,7 @@ fun TransactionListScreen(
     onNavigateToEditTransaction: (Long) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val searchText by viewModel.searchQuery.collectAsState()
     val context = LocalContext.current
     var showSortMenu by remember { mutableStateOf(false) }
     var transactionToDelete by remember { mutableStateOf<TransactionEntity?>(null) }
@@ -154,7 +155,7 @@ fun TransactionListScreen(
         ) {
             // 1. Optimized Responsive Search Box
             OutlinedTextField(
-                value = uiState.searchQuery,
+                value = searchText,
                 onValueChange = { viewModel.onSearchQueryChanged(it) },
                 placeholder = {
                     Text(
@@ -170,7 +171,7 @@ fun TransactionListScreen(
                     )
                 },
                 trailingIcon = {
-                    if (uiState.searchQuery.isNotEmpty()) {
+                    if (searchText.isNotEmpty()) {
                         IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
                             Icon(
                                 imageVector = Icons.Default.Clear,
@@ -213,6 +214,27 @@ fun TransactionListScreen(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
                         )
+                    )
+                }
+            }
+
+            // 3. Type / Payment Filter Chips
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TransactionType.entries.forEach { t ->
+                    FilterChip(
+                        selected = uiState.selectedType == t,
+                        onClick = { viewModel.onTypeSelected(if (uiState.selectedType == t) null else t) },
+                        label = { Text(t.displayName) }
+                    )
+                }
+                PaymentMethod.entries.forEach { m ->
+                    FilterChip(
+                        selected = uiState.selectedPaymentMethod == m,
+                        onClick = { viewModel.onPaymentMethodSelected(if (uiState.selectedPaymentMethod == m) null else m) },
+                        label = { Text(m.displayName) }
                     )
                 }
             }
@@ -263,7 +285,7 @@ fun TransactionListScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 90.dp)
+                    contentPadding = PaddingValues(bottom = 88.dp)
                 ) {
                     uiState.groupedTransactions.forEach { dayGroup ->
                         // Day Header

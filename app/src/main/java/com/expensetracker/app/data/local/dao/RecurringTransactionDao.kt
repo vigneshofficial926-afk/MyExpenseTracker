@@ -15,6 +15,12 @@ interface RecurringTransactionDao {
     @Query("SELECT * FROM recurring_transactions ORDER BY nextDueDate ASC")
     fun getAllRecurring(): Flow<List<RecurringTransactionEntity>>
 
+    @Query("SELECT * FROM recurring_transactions")
+    suspend fun getAllRecurringList(): List<RecurringTransactionEntity>
+
+    @Query("UPDATE recurring_transactions SET categoryName = :newName WHERE categoryId = :categoryId")
+    suspend fun renameCategory(categoryId: Long, newName: String)
+
     @Query("SELECT * FROM recurring_transactions WHERE isActive = 1 ORDER BY nextDueDate ASC")
     fun getActiveRecurring(): Flow<List<RecurringTransactionEntity>>
 

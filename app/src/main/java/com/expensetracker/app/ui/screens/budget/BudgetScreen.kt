@@ -183,7 +183,7 @@ fun BudgetScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 90.dp)
+            contentPadding = PaddingValues(bottom = 16.dp)
         ) {
             // 1. Month Selector Header
             item {
@@ -233,12 +233,12 @@ fun BudgetScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
-                                val remaining = (overallBudget - uiState.totalSpent).coerceAtLeast(0.0)
+                                val remaining = (overallBudget - uiState.totalSpent)
                                 Text(
                                     text = CurrencyFormatter.format(remaining),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (overallBudget > 0 && remaining > 0) IncomeGreen else MaterialTheme.colorScheme.onSurface
+                                    color = if (overallBudget > 0 && remaining >= 0) IncomeGreen else if (remaining < 0) ExpenseRed else MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = "Monthly Spending Cap",
